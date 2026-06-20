@@ -1,0 +1,24 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — contours</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="engine.js"></script><script>
+// contours — topographic ridge lines morphing slowly. Subtle dark-on-darker band, faint floor.
+const LIGHT = new URLSearchParams(location.search).has('light');  // add ?light for light mode
+if (LIGHT) document.documentElement.style.background = document.body.style.background = "#fbfbfb";
+const F = ASCIARA.fbm;
+ASCIARA({
+  fps: 30,
+  bg: LIGHT ? "#fbfbfb" : "#080808",
+  ink: LIGHT ? ["#ececec", "#9a9a9a"] : ["#161616", "#6e6e6e"],   // subtle band; ?light flips it
+  compute(buf, cols, rows, t){
+    const ox = Math.cos(t*0.08)*0.5, oy = Math.sin(t*0.08)*0.5;
+    for (let y=0;y<rows;y++) for (let x=0;x<cols;x++){
+      const q = F(x*0.04 + ox, y*0.08 + oy);
+      const h = F(x*0.04 + 2*q + t*0.025, y*0.08 + 2*q);   // slow morph
+      const ridge = 1 - Math.abs(2*h - 1);
+      buf[y*cols+x] = 0.05 + 0.95*Math.pow(ridge, 1.7);     // faint floor + brighter ridges
+    }
+  }
+});
+</script>

@@ -1,0 +1,133 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;500&display=swap" rel=stylesheet>
+<title>asciara — logo</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="engine.js"></script><script>
+// logo — TWO LAYERS: the background IS hero2's lit field (untouched), and the logo is a separate
+// overlay layer (its own bright colour) built from Accelerate's glyphs, sitting in a cleared moat.
+const LIGHT = new URLSearchParams(location.search).has('light');
+if (LIGHT) document.documentElement.style.background = document.body.style.background = "#fbfbfb";
+const F = ASCIARA.fbm, HASH = ASCIARA.hash;
+const LOGO_SRC = "logo.svg";
+const ACC = ["Δ","%","A","C",">","<","="];   // the Accelerate glyph set the mark is composed from
+
+// --- hero2 lit-surface field (the background layer) ---
+const SPAN = 1.5, BUMP = 1.9, CONTRAST = 1.05;
+const LV = (() => { const l = [-0.5,-0.6,0.62], m = Math.hypot(l[0],l[1],l[2]); return [l[0]/m,l[1]/m,l[2]/m]; })();
+const FLOW = [-0.85,-0.32], FLOWSPEED = 0.05, EVOLVE = 0.12;
+function height(x, y){
+  const qx = F(x,y), qy = F(x+5.2,y+1.3);
+  const rx = F(x+1.6*qx+1.7,y+1.6*qy+9.2), ry = F(x+1.6*qx+8.3,y+1.6*qy+2.8);
+  return F(x+1.8*rx, y+1.8*ry);
+}
+
+// --- 3D extruded Accelerate triangle (the logo) ---
+// Real brand vertices (from acc-logo.svg): apex leans right, long shallow left edge, steep right edge.
+const TRI = [[184.158,79.95],[235.34,242.5],[29.1875,242.5]];   // apex, bottom-right, bottom-left
+const STROKE = 24;                  // outline thickness in SVG units
+const DEPTH = [0.5, 0.85];           // isometric extrude direction (down-right)
+const FRONT_TONE = 0.92;            // flat brightness of the front face
+const SIDE_TONE  = 0.30;            // flat brightness of the extruded side face (the two-shade look)
+let markSharp = null, clearing = null, buffer = null, prismZ = null, prismN = null, Hgrid = null, curCols = 0, curRows = 0;
+function readR(g, w, h){ const d=g.getImageData(0,0,w,h).data, m=new Float32Array(w*h);
+  for (let i=0;i<w*h;i++) m[i]=d[i*4]/255; return m; }
+function buildMask(cols, rows){
+  curCols=cols; curRows=rows;
+  const N = cols*rows;
+  // place the triangle: fit its bbox into the centre, with Y squashed x0.5 so the 2:1 cells keep the true slant
+  const xs=TRI.map(p=>p[0]), ys=TRI.map(p=>p[1]);
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const tw=maxX-minX, th=maxY-minY;
+  const s = Math.min(cols*0.42/tw, rows*0.80/(th*0.5));
+  const ox = (cols - tw*s)/2 - minX*s, oy = (rows - th*s*0.5)/2 - minY*s*0.5;
+  const P = TRI.map(p=>[p[0]*s+ox, p[1]*s*0.5+oy]);     // triangle in cell space
+  // signed distance to the triangle OUTLINE (stroke) -> the front-face mask of the prism
+  function distSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1];
+    let t=(wx*vx+wy*vy)/(vx*vx+vy*vy); t=t<0?0:t>1?1:t; const dx=px-(a[0]+t*vx),dy=py-(a[1]+t*vy); return Math.hypot(dx,dy); }
+  const hw = STROKE*s*0.5;
+  // FRONT FACE: the flat triangle outline (one constant tone -> the lighter of the two isometric shades).
+  const front = new Float32Array(N);
+  for (let y=0;y<rows;y++) for (let x=0;x<cols;x++){
+    const d=Math.min(distSeg(x,y,P[0],P[1]), distSeg(x,y,P[1],P[2]), distSeg(x,y,P[2],P[0]));
+    front[y*cols+x] = d <= hw ? 1 : 0;
+  }
+  markSharp = front;
+  // ISOMETRIC EXTRUDE: offset the front face along DEPTH. The trailing region (in the body, behind the front)
+  // is the SIDE FACE, painted a single darker tone -> two flat shades = a solid 3D prism, not a soft bevel.
+  const D = Math.max(2, Math.round(cols*0.022));      // extrude length in cells (the visible thickness)
+  prismZ = new Float32Array(N);  prismN = new Float32Array(N).fill(-1);
+  for (let y=0;y<rows;y++) for (let x=0;x<cols;x++){
+    const i=y*cols+x;
+    if (front[i] > 0){ prismZ[i]=1; prismN[i]=FRONT_TONE; continue; }     // FRONT FACE: flat light
+    let side=false;
+    for (let k=1;k<=D;k++){
+      const sx=Math.round(x - k*DEPTH[0]), sy=Math.round(y - k*DEPTH[1]);
+      if (sx>=0&&sx<cols&&sy>=0&&sy<rows && front[sy*cols+sx]>0){ side=true; break; }
+    }
+    if (side){ prismZ[i]=0.7; prismN[i]=SIDE_TONE; }                      // SIDE FACE: flat dark
+  }
+  // Dilate the full prism silhouette by a couple of CELLS -> the fully-cleared zone covers the 3D logo + an empty ring.
+  const RING = 2;                       // cells of guaranteed nothingness between logo and where the fade begins
+  let bin = new Float32Array(N);
+  for (let i=0;i<N;i++) bin[i] = prismZ[i] > 0 ? 1 : 0;
+  const dil = dilate(bin, cols, rows, RING);
+  // CLEARING: blur the dilated mark large -> a smooth fade. Interior (logo+ring) saturates to 1 (field opacity 0,
+  // just shy of the logo); it gradients down to 0 outward, so the field fades IN from the background.
+  const cd=document.createElement('canvas'); cd.width=cols; cd.height=rows; const gd=cd.getContext('2d');
+  gd.fillStyle='#000'; gd.fillRect(0,0,cols,rows);
+  const dd=gd.getImageData(0,0,cols,rows); for (let i=0;i<N;i++){ const v=(dil[i]*255)|0; dd.data[i*4]=dd.data[i*4+1]=dd.data[i*4+2]=v; dd.data[i*4+3]=255; }
+  gd.putImageData(dd,0,0);
+  const cb=document.createElement('canvas'); cb.width=cols; cb.height=rows; const gb=cb.getContext('2d');
+  gb.filter = 'blur(' + Math.max(4, Math.round(cols*0.11)) + 'px)';
+  gb.drawImage(cd, 0, 0);
+  const raw = readR(gb, cols, rows);
+  clearing = new Float32Array(N);
+  for (let i=0;i<N;i++) clearing[i] = Math.min(1, raw[i]*1.5);   // smooth falloff, saturates to 1 over the logo+ring
+}
+function dilate(src, cols, rows, rad){   // separable max filter -> expand the mask by `rad` cells
+  const tmp = new Float32Array(cols*rows), out = new Float32Array(cols*rows);
+  for (let y=0;y<rows;y++) for (let x=0;x<cols;x++){
+    let m=0; for (let k=-rad;k<=rad;k++){ const xx=x+k; if (xx>=0&&xx<cols) m=Math.max(m,src[y*cols+xx]); }
+    tmp[y*cols+x]=m;
+  }
+  for (let y=0;y<rows;y++) for (let x=0;x<cols;x++){
+    let m=0; for (let k=-rad;k<=rad;k++){ const yy=y+k; if (yy>=0&&yy<rows) m=Math.max(m,tmp[yy*cols+x]); }
+    out[y*cols+x]=m;
+  }
+  return out;
+}
+
+ASCIARA({
+  fps: 30,
+  bg: LIGHT ? "#fbfbfb" : "#080808",
+  ink: LIGHT ? ["#ececec", "#9a9a9a"] : ["#161616", "#707070"],   // FIELD layer = exactly hero2's band
+  overlay: LIGHT ? ["#c8c8c8", "#101010"] : ["#343434", "#ffffff"],  // LOGO band [shadow, lit] -> 3D shading
+  resize(cols, rows){ Hgrid = new Float32Array(cols*rows); buildMask(cols, rows); },
+  compute(buf, cols, rows, t, ov){
+    const dx = FLOW[0]*FLOWSPEED*t + 0.4*Math.cos(t*EVOLVE);
+    const dy = FLOW[1]*FLOWSPEED*t + 0.4*Math.sin(t*EVOLVE);
+    const scale = SPAN/cols;
+    for (let y=0;y<rows;y++) for (let x=0;x<cols;x++)
+      Hgrid[y*cols+x] = height(x*scale + dx, y*scale*2.0 + dy);
+    const inv2s = 1/(2*scale);
+    for (let y=0;y<rows;y++) for (let x=0;x<cols;x++){
+      const i = y*cols+x;
+      const xm=x>0?x-1:x, xp=x<cols-1?x+1:x, ym=y>0?y-1:y, yp=y<rows-1?y+1:y;
+      const hh = Hgrid[i];
+      const hx = (Hgrid[y*cols+xp]-Hgrid[y*cols+xm])*inv2s*(xp!==xm?1:2);
+      const hy = (Hgrid[yp*cols+x]-Hgrid[ym*cols+x])*inv2s*(yp!==ym?1:2);
+      const bx=-BUMP*hx, by=-BUMP*hy, nl=Math.hypot(bx,by,1);
+      let diff = (bx*LV[0]+by*LV[1]+LV[2])/nl; if (diff<0) diff=0;
+      let s = 0.08 + 0.10*hh + 0.92*diff; s = (s-0.5)*CONTRAST + 0.5; s = s<0?0:s>1?1:s;
+      const cl = clearing ? clearing[i] : 0;
+      buf[i] = s * (1 - cl);                     // field fades IN from the background, reaching 0 just shy of the logo
+      if (prismZ && prismZ[i] > 0.02){           // overlay layer: the 3D extruded triangle, shaded + Accelerate glyphs
+        const base = (HASH(x,y)*ACC.length)|0;
+        const tw = Math.sin(t*0.45 + HASH(x+7,y+3)*6.283);   // each cell drifts on its own slow phase
+        const ch = ACC[(base + (tw > 0.86 ? 1 : 0)) % ACC.length];   // occasional glyph swap = a slight, alive shimmer
+        ov[i] = { c: ch, b: prismN[i] };         // brightness from the prism's surface normal -> reads as 3D
+      }
+    }
+  }
+});
+</script>

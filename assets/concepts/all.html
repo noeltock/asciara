@@ -1,0 +1,32 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — all backgrounds</title>
+<style>
+  html,body{ margin:0; background:#050505; color:#cfcfcf; font-family:"Geist Mono",monospace; font-weight:300; }
+  header{ padding:16px 18px; letter-spacing:6px; font-size:13px; color:#bdbdbd; }
+  header b{ color:#fff; letter-spacing:8px; }
+  header span{ color:#666; letter-spacing:2px; }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:2px; padding:0 2px 2px; }
+  .tile{ position:relative; aspect-ratio:16/10; background:#080808; overflow:hidden; }
+  .tile.light{ background:#fbfbfb; }
+  .tile iframe{ width:100%; height:100%; border:0; display:block; }
+  .tile .tag{ position:absolute; top:8px; left:10px; font-size:11px; letter-spacing:2px;
+    padding:3px 9px; background:rgba(0,0,0,.4); color:#cfcfcf; pointer-events:none; }
+  .tile.light .tag{ background:rgba(255,255,255,.55); color:#555; }
+  @media (max-width:760px){ .grid{ grid-template-columns:1fr; } }
+</style>
+<header><b>asciara</b> &nbsp; <span>four backgrounds · dark left · light right · all live</span></header>
+<div class="grid" id="g"></div>
+<script>
+  const pieces = [["hero2","../hero2.html"], ["dissolve","dissolve.html"], ["logo-3d","logo-3d.html"], ["contours","contours.html"]];
+  const g = document.getElementById('g');
+  for (const [name, base] of pieces){
+    for (const mode of ["dark","light"]){
+      const t = document.createElement('div'); t.className = 'tile' + (mode==='light' ? ' light' : '');
+      const f = document.createElement('iframe'); f.src = base + (mode==='light' ? '?light' : '');
+      f.title = name + ' ' + mode; f.loading = 'eager';
+      const tag = document.createElement('div'); tag.className = 'tag'; tag.textContent = name + ' · ' + mode;
+      t.appendChild(f); t.appendChild(tag); g.appendChild(t);
+    }
+  }
+</script>

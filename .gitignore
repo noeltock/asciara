@@ -1,0 +1,12 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# transient render output from the CLI tool
+frames/
+*.tmp
+
+# local preview / QA artifacts
+.playwright-mcp/
