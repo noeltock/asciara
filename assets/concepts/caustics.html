@@ -1,0 +1,21 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — caustics</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="../next/nx.js"></script><script src="compat.js"></script><script>
+// caustics — the bright shifting web of light on a pool floor. Emissive (not lit): thin bright veins on dark.
+const LIGHT=new URLSearchParams(location.search).has('light');
+if(LIGHT)document.documentElement.style.background=document.body.style.background="#fbfbfb";
+const F=ASCIARA.fbm;
+ASCIARA({ fps:30, bg:LIGHT?"#fbfbfb":"#080808",
+  ink:LIGHT?["#efefef","#8a8a8a"]:["#141414","#9a9a9a"],
+  compute(buf,cols,rows,t){
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+      const w1=Math.abs(2*F(x*0.075 + t*0.05, y*0.14 + t*0.03)-1);
+      const w2=Math.abs(2*F(x*0.075+5.1, y*0.14 - t*0.04)-1);
+      const veins=Math.pow(1-Math.min(w1,w2), 3.2);            // overlap of two ridge sets -> a shifting net
+      buf[y*cols+x]=0.06 + veins;
+    }
+  }
+});
+</script>

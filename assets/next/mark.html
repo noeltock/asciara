@@ -1,0 +1,68 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — mark</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="nx.js"></script><script>
+// mark — THE LOGO IS THE STILL WATER.
+//
+// The first attempt raised the triangle as a plateau in the terrain. That was the wrong idea,
+// not the wrong numbers: a hard-edged shape pushed into a calm continuous field is a
+// discontinuity by construction, so it either reads as something pasted on — which is exactly
+// why monolith.html and gyre.html have to cut a moat around theirs — or it reads as noise.
+//
+// So the mark is not raised and it is not drawn. It is the region where the sea STOPS MOVING.
+// Ripples run across the whole surface; inside the triangle their amplitude damps to almost
+// nothing over a few cells. A flat surface returns a constant normal, so the mark comes out as
+// a patch of uniform tone — glass — inside moving water. Nothing is layered, nothing is masked,
+// no moat is needed, and every value in the frame stays continuous in space and in time.
+// It surfaces because it is calm, and it holds for most of the cycle rather than flashing past.
+const F = NX.fbm, SS = NX.smoothstep, SD = NX.sdTriangle;
+
+const TRI    = [[184.158, 79.95], [235.34, 242.5], [29.1875, 242.5]];  // real brand vertices
+const STROKE = 24;      // outline thickness, SVG units — the mark is a ring, not a solid
+const SIZE   = 0.54;    // logo height as a fraction of the viewport height
+const FEATH  = 10;      // SVG units the stillness takes to fade back into open water
+const CALM   = 0.96;    // how much of the motion is damped inside the mark
+const LIFT   = 0.55;    // how far the calm water sits above the open water — see the note below
+const PERIOD = 46;      // seconds for one arrive-and-leave
+
+const CX = (29.1875 + 235.34)/2, CY = (79.95 + 242.5)/2, UNIT = 242.5 - 79.95;
+
+NX({ fps: 30, matte: { mode: 'noise', cell: 3, depth: 0.26, bed: 0.26, bedSteps: 2, amp: 20, contrast: 0.50, speed: 0.06, wobble: 0.50 }, layers: [{
+  gridSpace: true,
+  heightGrid(H, cols, rows, t, o){
+    const cx = cols/2, cy = rows/2, px = rows*SIZE;
+    // a PLATEAU, not a sine: the mark arrives, holds legible for most of the cycle, then goes.
+    // A bare sine spends most of its time in transit, which is why it was only readable in a
+    // narrow window.
+    const settle = SS(0.18, 0.52, 0.5 + 0.5*Math.sin(t*2*Math.PI/PERIOD));
+    for (let y = 0; y < rows; y++){
+      for (let x = 0; x < cols; x++){
+        // screen cell -> logo space (o.aspect turns a column step into a row step)
+        const sx = ((x - cx)*o.aspect / px)*UNIT + CX;
+        const sy = ((y - cy)          / px)*UNIT + CY;
+        const d = Math.abs(SD(sx, sy, TRI[0], TRI[1], TRI[2])) - STROKE/2;
+        const still = (1 - SS(-FEATH, FEATH, d)) * settle * CALM;
+
+        // open water: two crossing swells and a chop, all damped to nothing inside the mark
+        const a = Math.sin((x*0.082 + y*0.046) - t*0.105);
+        const b = 0.45*Math.sin((x*0.054 - y*0.090) - t*0.074 + 1.3);
+        const chop = 0.20*(F(x*0.19 + t*0.024, y*0.19) - 0.5);
+        // Stillness ALONE does not read, and this is why: a flat surface returns a constant
+        // normal, so its tone is the AVERAGE of the wavy surface around it — the one value
+        // guaranteed to disappear into its own background. The mark differed from the water
+        // only in variance, and variance alone is not a shape.
+        // So the calm water also sits slightly proud of the open water. The interior stays
+        // flat and quiet, but the feathered rim becomes a gentle slope, and a slope catches
+        // the light — so the outline of the mark is drawn by the same lighting that draws
+        // every wave, and the inside stays glassy. No hard edge anywhere: the rim ramps over
+        // several cells, exactly as the stillness does.
+        H[y*cols+x] = 0.5 + (1 - still)*(0.34*(0.62*a + 0.38*b) + chop) + still*LIFT;
+      }
+    }
+  },
+  bump: 28, contrast: 1.30, amb: 0.05, dif: 0.56, hgt: 0.11,
+  dither: 1,
+  ink: NX.LIGHT ? ["#ececec","#8a8a8a"] : ["#1c1c1c","#6c6c6c"],
+}]});
+</script>

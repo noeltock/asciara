@@ -1,0 +1,45 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — glint</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="nx.js"></script><script>
+// glint — specular sheen on RAIN RINGS.
+// Not a swell. Several sources sit on the surface and send concentric ripples outward forever,
+// each ring train decaying with distance so the pattern stays local and the interference where
+// two trains cross is the interesting part. This is the swift one: the rings move quickly
+// outward while the sources themselves wander slowly, so there is fast detail on a slow frame.
+// The specular lobe is wide and soft — a low exponent — so ring crests carry a sheen instead of
+// scintillating, which is what a tight lobe does and why the first version looked like static.
+const F = NX.fbm;
+const NS = 5, S = [];
+for (let i = 0; i < NS; i++) S.push({
+  x: 0.15 + 0.7*NX.hash(i*7+3, 5), y: 0.15 + 0.7*NX.hash(i*11+2, 9),
+  k: 26 + 16*NX.hash(i*13, 15),        // ring spacing
+  w: 0.42 + 0.40*NX.hash(i*17, 19),      // how fast the rings travel outward — the swift part
+  L: 0.30 + 0.22*NX.hash(i*19, 23),    // how far the train carries before it dies
+  p: 6.28*NX.hash(i*23, 27), d: 0.02 + 0.03*NX.hash(i*29, 31)
+});
+NX({ fps: 30, matte: { mode: 'noise', cell: 3, depth: 0.26, bed: 0.26, bedSteps: 2, amp: 20, contrast: 0.50, speed: 0.06, wobble: 0.50 }, layers: [{
+  gridSpace: true,
+  heightGrid(H, cols, rows, t){
+    for (const s of S){ s.cx = s.x + s.d*Math.sin(t*0.02 + s.p); s.cy = s.y + s.d*Math.cos(t*0.017 + s.p); }
+    for (let y = 0; y < rows; y++){
+      const fy = y/rows;
+      for (let x = 0; x < cols; x++){
+        const fx = x/cols;
+        let h = 0;
+        for (const s of S){
+          const dx = (fx - s.cx)*1.7, dy = fy - s.cy;
+          const r = Math.sqrt(dx*dx + dy*dy);
+          h += Math.sin(s.k*r - s.w*t + s.p) * Math.exp(-r/s.L);
+        }
+        H[y*cols+x] = 0.5 + 0.17*h + 0.13*F(x*0.14 + t*0.010, y*0.14);
+      }
+    }
+  },
+  bump: 22, contrast: 1.32, amb: 0.05, dif: 0.54, hgt: 0.10,
+  dither: 1,
+  spec: 0.20, shine: 10,       // wide soft lobe — a finish on the crests, not a sparkle
+  ink: NX.LIGHT ? ["#ececec","#8a8a8a"] : ["#1c1c1c","#6c6c6c"],
+}]});
+</script>

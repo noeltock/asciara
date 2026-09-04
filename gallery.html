@@ -1,0 +1,157 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Pixel&family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — gallery</title>
+<style>
+  html,body{ margin:0; min-height:100%; background:#080808; color:#cfcfcf;
+    font-family:"Geist Mono",monospace; font-weight:300; }
+  body.light{ background:#fbfbfb; color:#080808; }
+  .header{ display:flex; align-items:center; gap:18px; padding:16px 18px; border-bottom:1px solid #161616; }
+  body.light .header{ border-color:#cfcfcf; }
+  .header b{ color:#fff; font-family:'Geist Pixel','Geist Mono',monospace; font-size:17px; font-weight:300; letter-spacing:2px; }
+  .header b a{ color:inherit; text-decoration:none; }
+  body.light .header b{ color:#080808; }
+  .sub{ color:#666; font-size:13px; letter-spacing:2px; }
+  .spacer{ flex:1; }
+  .pill{ text-decoration:none; color:#bdbdbd; font-size:13px; letter-spacing:2px;
+    border:1px solid #2a2a2a; padding:7px 16px; transition:.15s; white-space:nowrap; }
+  .pill:hover{ color:#fff; border-color:#555; background:#101010; }
+  body.light .pill{ color:#080808; }
+  body.light .pill:hover{ color:#fff; }
+  .section-heading{ color:#7d7d7d; font-size:12px; letter-spacing:3px; text-transform:lowercase;
+    margin:28px 18px 10px; }
+  .grid{ display:grid; gap:18px; padding:6px 18px 28px; grid-template-columns:1fr; }
+  .tile{ aspect-ratio:16/10; position:relative; overflow:hidden; background:#080808;
+    border:1px solid #232323; }
+  body.light .tile{ background:#fbfbfb; }
+  .tile iframe{ width:100%; height:100%; border:0; display:block; }
+  .tile > a{ position:absolute; inset:0; z-index:2; display:block; }
+  .tile:hover{ outline:1px solid #555; outline-offset:-1px; }
+  .caption{ position:absolute; top:8px; left:10px; z-index:3; font-size:11px; letter-spacing:2px;
+    padding:3px 9px; background:rgba(0,0,0,.4); color:#cfcfcf; pointer-events:none; }
+  .caption .desc{ display:block; color:#8a8a8a; font-size:10px; letter-spacing:1px; margin-top:4px; }
+  body.light .caption{ background:rgba(255,255,255,.55); color:#555; }
+  body.light .caption .desc{ color:#555; }
+  body.light .tile.dark-only{ background:#080808; }
+  body.light .tile.dark-only .caption{ background:rgba(0,0,0,.4); color:#cfcfcf; }
+  body.light .tile.dark-only .caption .desc{ color:#8a8a8a; }
+  @media (min-width:760px){ .grid{ grid-template-columns:repeat(2,1fr); } }
+</style>
+<header class="header">
+  <b><a href="/">asciara</a></b>
+  <span class="sub">every background · click any tile for full screen</span>
+  <span class="spacer"></span>
+  <a class="pill" id="mode" href="#">dark</a>
+</header>
+<main>
+  <section>
+    <div class="section-heading">next · the newer engine</div>
+    <div class="grid" id="next-grid"></div>
+  </section>
+  <section>
+    <div class="section-heading">current · the original pieces</div>
+    <div class="grid" id="current-grid"></div>
+  </section>
+  <section>
+    <div class="section-heading">lab · GPU experiments (three.js, unverified)</div>
+    <div class="grid" id="lab-grid"></div>
+  </section>
+</main>
+<script>
+  const SECTIONS = [
+    {
+      grid: 'next-grid',
+      pieces: [
+        ["ridge", "/assets/next/ridge.html", "drifting vortices, contour glyphs tracing where the flow turns"],
+        ["glint", "/assets/next/glint.html", "rain rings from wandering sources, with a specular sheen"],
+        ["strata", "/assets/next/strata.html", "three depth planes, each with its own motion, occluding"],
+        ["phosphor", "/assets/next/phosphor.html", "sheared gusting filaments that leave a decaying wake"],
+        ["mark", "/assets/next/mark.html", "a logo that is not drawn — the water that stopped moving"]
+      ]
+    },
+    {
+      grid: 'current-grid',
+      pieces: [
+        ["billow", "/assets/billow.html", "a lit, flowing surface — the signature"],
+        ["contours", "/assets/concepts/contours.html", "slow topographic ridge lines"],
+        ["swell", "/assets/concepts/swell.html", "deep-ocean ground swell"],
+        ["dunes", "/assets/concepts/dunes.html", "sand dunes slowly migrating"],
+        ["tide", "/assets/concepts/tide.html", "a calm surface breathing"],
+        ["plume", "/assets/concepts/plume.html", "rising smoke, curling upward"],
+        ["caustics", "/assets/concepts/caustics.html", "shifting light on a pool floor"],
+        ["aurora", "/assets/concepts/aurora.html", "slow vertical curtains of light"],
+        ["wind", "/assets/concepts/wind.html", "gusting wind over a surface"],
+        ["current", "/assets/concepts/current.html", "a slow river surface, eddies"],
+        ["mist", "/assets/mist.html", "a simple drifting field, one grey (dark only)", true],
+        ["monolith", "/assets/concepts/monolith.html", "logo as a static isometric prism"],
+        ["gyre", "/assets/concepts/gyre.html", "the prism rotating 360°"]
+      ]
+    },
+    {
+      grid: 'lab-grid',
+      pieces: [
+        ["smoke", "/assets/lab/_smoke.html", "pipeline smoke test — not a designed piece"]
+      ]
+    }
+  ];
+  const modeKey = 'asciara-gallery-mode';
+  const tiles = [];
+  let light = false;
+  try { light = localStorage.getItem(modeKey) === 'light'; } catch (error) {}
+  const modeUrl = (url, darkOnly) => light && !darkOnly ? url + '?light' : url;
+  for (const section of SECTIONS) {
+    const grid = document.getElementById(section.grid);
+    for (const [name, url, description, darkOnly = false] of section.pieces) {
+      const tile = document.createElement('div');
+      tile.className = darkOnly ? 'tile dark-only' : 'tile';
+      tile.dataset.src = modeUrl(url, darkOnly);
+      const frame = document.createElement('iframe');
+      frame.src = 'about:blank';
+      const link = document.createElement('a');
+      link.href = tile.dataset.src;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      const caption = document.createElement('div');
+      caption.className = 'caption';
+      caption.textContent = name;
+      const desc = document.createElement('span');
+      desc.className = 'desc';
+      desc.textContent = description;
+      caption.appendChild(desc);
+      tile.append(frame, link, caption);
+      grid.appendChild(tile);
+      tiles.push({ tile, frame, link, url, darkOnly });
+    }
+  }
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const item = tiles.find(({ tile }) => tile === entry.target);
+      if (entry.isIntersecting) {
+        item.tile.classList.add('visible');
+        item.frame.src = item.tile.dataset.src;
+      } else {
+        item.tile.classList.remove('visible');
+        item.frame.src = 'about:blank';
+      }
+    }
+  }, { rootMargin: '200px' });
+  tiles.forEach(({ tile }) => observer.observe(tile));
+  function applyMode() {
+    document.body.classList.toggle('light', light);
+    document.getElementById('mode').textContent = light ? 'light' : 'dark';
+    for (const item of tiles) {
+      const src = modeUrl(item.url, item.darkOnly);
+      item.tile.dataset.src = src;
+      item.link.href = src;
+      if (item.tile.classList.contains('visible')) item.frame.src = src;
+    }
+  }
+  document.getElementById('mode').addEventListener('click', (event) => {
+    event.preventDefault();
+    light = !light;
+    try { localStorage.setItem(modeKey, light ? 'light' : 'dark'); } catch (error) {}
+    applyMode();
+  });
+  applyMode();
+</script>

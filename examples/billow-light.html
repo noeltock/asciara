@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>billow — light</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #fbfbfb; }
+  /* the background sits behind everything and never eats clicks */
+  #asciara-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  #asciara-bg canvas { display: block; }
+  .content { position: relative; z-index: 1; padding: 8vh 6vw; font: 300 16px/1.6 system-ui, sans-serif; color: #1a1a1a; }
+</style>
+</head>
+<body>
+<div id="asciara-bg"><canvas></canvas></div>
+<div class="content"><h1>Your page</h1><p>Content sits above the background.</p></div>
+
+<script src="../assets/next/nx.js"></script>   <!-- in your own project: copy nx.js in and point at it -->
+<script>
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const W = NX.warp;
+NX({
+  ui: false,          // no control bar — that is for the asciara workshop, not your site
+  fps: reduce ? 1 : 30,
+  bg: "#fbfbfb",
+  matte: { mode: 'noise', cell: 2, depth: 0.26, bed: 0.26, bedSteps: 2,
+           amp: 10, contrast: 0.10, speed: reduce ? 0 : 0.11, wobble: 0.56 },
+  layers: [{
+    height(x, y){ return W(x, y, 1.7); },
+    span: 1.5,
+    bump: 1.9,
+    light: [-0.5, -0.6, 0.62],
+    contrast: 1.05,
+    amb: 0.08, hgt: 0.10, dif: 0.92,
+    drift: [-0.85, -0.32], driftSpeed: reduce ? 0 : 0.05, evolve: 0.12,
+    srgbBand: true,
+    ink: ["#ececec", "#9a9a9a"]     // light mode: mid grey on near-white
+  }]
+});
+</script>
+</body>
+</html>

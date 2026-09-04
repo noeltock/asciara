@@ -18,7 +18,7 @@ ffmpeg -y -framerate 24 -i OUTDIR/frame_%04d.png -c:v libvpx-vp9 -b:v 0 -crf 30 
 The loop is already seamless (the field is sampled around a circle in time), so `-loop 0` on the GIF or an HTML `loop` attribute plays without a seam. Match `-framerate` to the `--frames` ÷ desired seconds.
 
 ## Embed on the web (a site hero)
-**Option A — self-contained animated template (no build, no deps):** ship `assets/hero.html`. It renders a live looping flow field in a `<pre>`; tune the `CONFIG` block (ramp, cell, density, loopSeconds, colour). Copy its `<pre>` + `<style>` + `<script>` into the page, or iframe the file.
+**Option A — self-contained animated template (no build, no deps):** ship `assets/mist.html`. It renders a live looping flow field in a `<pre>`; tune the `CONFIG` block (ramp, cell, density, loopSeconds, colour). Copy its `<pre>` + `<style>` + `<script>` into the page, or iframe the file.
 
 **Option B — `<video>` (most reliable, zero JS):** encode MP4 + WebM (above) and:
 ```html
@@ -35,6 +35,5 @@ Use a true monospace with good glyph coverage. Both are OFL-1.1, free to embed/r
 The tool auto-discovers a system monospace (Menlo/SF Mono on macOS, DejaVu Sans Mono on Linux) and falls back gracefully; pass `--font /path/to/Font.ttf` to pin one. For web, `font-family: "Iosevka","JetBrains Mono",monospace` with the woff2 self-hosted.
 
 ## Colour notes
-- Default render is monochrome (`--fg`/`--bg`). Keep the background near-black, not pure black, and the foreground near-white, not pure white — the slight softening avoids a harsh bitmap look.
-- `--color source` samples each cell's average colour from the image; only use it on already-desaturated/duotone sources, or it tips into novelty.
-- Terminal preview only (not asset output): `chafa --symbols ascii --colors 256 image.png` is a fast path, but it has no edge channel, so it is not the skill's signature look.
+- Output is greyscale on near-black. `render` takes `--fg` for a flat foreground; `image` and `animate` have no colour flags. Keep the background near-black, not pure black, and the foreground near-white, not pure white — the slight softening avoids a harsh bitmap look.
+- Terminal preview only (not asset output): chafa with ASCII symbols and 256 colours on `image.png` is a fast path, but it has no edge channel, so it is not the skill's signature look.

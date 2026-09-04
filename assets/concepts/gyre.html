@@ -6,7 +6,7 @@
 // logo 3D — the Accelerate triangle as a real extruded PRISM, rotating 360° about the vertical axis.
 // Software 3D: a point cloud of the prism's surfaces is rotated about Y each frame, projected to the cell
 // grid with a z-buffer (nearest face wins), and each face is shaded by how it now faces the light.
-// Apex stays top, base stays bottom. Background is hero2's field; the logo clears a faded moat around itself.
+// Apex stays top, base stays bottom. Background is billow's field; the logo clears a faded moat around itself.
 const LIGHT = new URLSearchParams(location.search).has('light');
 if (LIGHT) document.documentElement.style.background = document.body.style.background = "#fbfbfb";
 const F = ASCIARA.fbm, HASH = ASCIARA.hash;
@@ -64,7 +64,7 @@ const pts = (() => {
 
 const L3 = (()=>{ const l=[-0.45,0.5,0.80], m=Math.hypot(...l); return [l[0]/m,l[1]/m,l[2]/m]; })(); // light, y-up
 
-// --- background = hero2 lit field ---
+// --- background = billow lit field ---
 const SPAN=1.5,BUMP=1.9,CONTRAST=1.05;
 const LV=(()=>{const l=[-0.5,-0.6,0.62],m=Math.hypot(...l);return[l[0]/m,l[1]/m,l[2]/m];})();
 const FLOW=[-0.85,-0.32],FLOWSPEED=0.05,EVOLVE=0.12;
@@ -84,14 +84,14 @@ function boxblur(buf,cols,rows,rad){
 ASCIARA({
   fps: 30,
   bg: LIGHT ? "#fbfbfb" : "#080808",
-  ink: LIGHT ? ["#ececec", "#9a9a9a"] : ["#161616", "#707070"],   // field = hero2 band
+  ink: LIGHT ? ["#ececec", "#9a9a9a"] : ["#161616", "#707070"],   // field = billow band
   overlay: LIGHT ? ["#c8c8c8", "#101010"] : ["#343434", "#ffffff"], // logo band [shadow, lit]
   resize(cols, rows){ const N=cols*rows; C2=cols;R2=rows;
     Hg=new Float32Array(N); occ=new Float32Array(N); glb=new Float32Array(N); glc=new Int8Array(N); zbf=new Float32Array(N);
     cg=new Int8Array(N); sglb=new Float32Array(N); pocc=new Float32Array(N); clr=new Float32Array(N); tmpA=new Float32Array(N); tmpB=new Float32Array(N); },
   compute(buf, cols, rows, t, ov){
     const N=cols*rows;
-    // 1) background field (hero2)
+    // 1) background field (billow)
     const dx=FLOW[0]*FLOWSPEED*t+0.4*Math.cos(t*EVOLVE), dy=FLOW[1]*FLOWSPEED*t+0.4*Math.sin(t*EVOLVE);
     const scale=SPAN/cols;
     for(let y=0;y<rows;y++)for(let x=0;x<cols;x++) Hg[y*cols+x]=height(x*scale+dx,y*scale*2.0+dy);

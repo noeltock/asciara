@@ -10,3 +10,12 @@ frames/
 
 # local preview / QA artifacts
 .playwright-mcp/
+# stray capture frames — screenshot/GIF lanes sometimes write these into the repo root
+f_*.png
+frames/
+/*.png
+
+# research/scrape scratch — agents sometimes write these into the working directory
+.firecrawl/
+*_search.json
+fetch_results.json

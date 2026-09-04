@@ -1,0 +1,23 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — tide</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="../next/nx.js"></script><script src="compat.js"></script><script>
+// tide — a calm surface that breathes: a very slow swell whose amplitude rises and falls, like a tide inhaling.
+const LIGHT=new URLSearchParams(location.search).has('light');
+if(LIGHT)document.documentElement.style.background=document.body.style.background="#fbfbfb";
+const F=ASCIARA.fbm; let H=null;
+ASCIARA({ fps:30, bg:LIGHT?"#fbfbfb":"#080808",
+  ink:LIGHT?["#ececec","#9a9a9a"]:["#161616","#707070"],
+  resize(c,r){H=new Float32Array(c*r);},
+  compute(buf,cols,rows,t){
+    const breath=0.5+0.5*Math.sin(t*0.14);                     // ~45s inhale/exhale
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+      const a=Math.sin((x*0.07 + y*0.04) - t*0.28);
+      const base=F(x*0.10 + t*0.03, y*0.10);
+      H[y*cols+x]=0.5 + (0.14 + 0.30*breath)*a + 0.16*base;     // swell amplitude breathes
+    }
+    litShade(H,buf,cols,rows,{bump:28,hgt:0.12});
+  }
+});
+</script>

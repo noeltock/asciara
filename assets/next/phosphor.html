@@ -1,0 +1,32 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — phosphor</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="nx.js"></script><script>
+// phosphor — persistence over SHEARED, GUSTING FLOW.
+// The swift one. Each row of the surface travels at its own speed, and that speed gusts, so the
+// field is drawn out into long filaments that slide past each other. Persistence — each cell
+// keeping a decaying maximum of its own past brightness — then turns that motion into something
+// you can see standing still: a single frame carries the wake of the last few seconds. Fast
+// motion is the point here, and it is the reason this piece needs the memory: without it the
+// speed just reads as noise.
+const F = NX.fbm;
+NX({ fps: 30, matte: { mode: 'noise', cell: 3, depth: 0.26, bed: 0.26, bedSteps: 2, amp: 20, contrast: 0.50, speed: 0.06, wobble: 0.50 }, layers: [{
+  gridSpace: true,
+  heightGrid(H, cols, rows, t){
+    for (let y = 0; y < rows; y++){
+      const fy = y/rows;
+      // the shear profile: how fast this row runs, gusting slowly along the height of the frame
+      const gust = 0.55 + 0.85*F(fy*2.6 + t*0.017, 11.3);
+      const sx = t*gust*0.30;
+      for (let x = 0; x < cols; x++)
+        H[y*cols+x] = 0.5 + 0.34*Math.sin((x*0.055 + y*0.020) - t*0.068)
+                          + 0.30*(F(x*0.055 - sx, y*0.115) - 0.5);
+    }
+  },
+  bump: 25, contrast: 1.32, amb: 0.05, dif: 0.56, hgt: 0.10,
+  dither: 1,
+  persist: 0.94,        // <- the whole piece: how much of last frame survives into this one
+  ink: NX.LIGHT ? ["#ececec","#8a8a8a"] : ["#1c1c1c","#6c6c6c"],
+}]});
+</script>
