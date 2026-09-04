@@ -12,7 +12,9 @@ Small, chosen sets beat the full 70-char ramp for intentional texture. Built-in 
 - `fine` — 70-step, maximum tonal depth for high-res portraits
 - `calm` ` .·:-=` — sparse ambient fields
 - `drift` ` .·:*+` — gentle motion
+- `soft` ` .:-=+*#` — soft tonal shading
 - `blocks` ` ░▒▓█` — painterly shading, moves toward texture over text
+- `web` ` .:;/<>=?*T%&#@N` — coverage-ordered code-symbol set
 
 Pass any literal string to `--ramp` for a custom set (order light→dense). 7-15 glyphs is the intentional-texture zone.
 
@@ -20,16 +22,18 @@ Pass any literal string to `--ramp` for a custom set (order light→dense). 7-15
 Calm = **low spatial frequency + slow + seamless + eased**. Use noise/flow, never per-frame randomness (that flickers and reads anxious). The animator loops seamlessly by sampling the field along a **circle in time** (no visible seam) and domain-warps two octaves for organic drift. Keep frame counts generous (a 6-18s loop at 24-30fps) so motion breathes.
 
 ## Four presets (encoded in the tool)
-| Preset | Use | Ramp | Colour | Feel |
+Output is greyscale; a preset sets only ramp and density.
+
+| Preset | Use | Ramp | Density | Feel |
 |---|---|---|---|---|
-| `mono` | dense portrait / static image | mono10 | white on near-black | maximum tonal fidelity |
-| `calm` | ambient hero / wallpaper | calm | phosphor green on black | meditative, sparse |
-| `drift` | motion background | drift | ice blue on deep navy | gentle organic flow |
-| `amber` | warm CRT mood | calm | amber on warm black | nostalgic glow |
+| `calm` | ambient hero / wallpaper | calm | 0.45 | meditative, sparse |
+| `drift` | motion background | drift | 0.55 | gentle organic flow |
+| `soft` | soft ambient field | soft | 0.50 | low-contrast, smooth |
+| `mono` | dense portrait / static image | mono10 | 0.60 | maximum tonal fidelity |
 
 ## Quick recipes
 - **Soulful portrait:** `image photo.jpg --width 100 --ramp mono10 --cell 12` (edges on, mono). For more grit drop `--edge-threshold 0.14`.
-- **Calm web hero:** the `assets/hero.html` template, or `animate --preset calm` → loop GIF/MP4.
+- **Calm web hero:** the `assets/mist.html` template, or `animate --preset calm` → loop GIF/MP4.
 - **Structural / graphic object:** `image logo.png --width 110 --ramp " .:|-/\\+#" --edge-threshold 0.12` (edge-forward, sparse interiors).
 - **Duotone motion:** `animate --preset drift` then encode WebM with alpha for overlay use.
 

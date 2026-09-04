@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>phosphor — dark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; min-height: 100%; background: #080808; }
+  #asciara-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  #asciara-bg canvas { display: block; }
+  .content { position: relative; z-index: 1; padding: 8vh 6vw; font: 300 16px/1.6 system-ui, sans-serif; color: #e8e8e8; }
+</style>
+</head>
+<body>
+<div id="asciara-bg"><canvas></canvas></div>
+<div class="content"><h1>Your page</h1><p>Content sits above the background.</p></div>
+
+<script src="../assets/next/nx.js"></script>   <!-- in your own project: copy nx.js in and point at it -->
+<script>
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const F = NX.fbm;
+NX({
+  ui: false,
+  fps: reduce ? 1 : 30,
+  bg: "#080808",
+  matte: { mode: 'noise', cell: 4, depth: 0.26, bed: 0.26, bedSteps: 2,
+           amp: 20, contrast: 0.06, speed: reduce ? 0 : 0.11, wobble: 0.56 },
+  layers: [{
+    gridSpace: true,
+    heightGrid(H, cols, rows, t){
+      const T = reduce ? 0 : t;
+      for (let y = 0; y < rows; y++){
+        const fy = y/rows;
+        // each row travels at its own speed, and that speed gusts — the field is drawn out
+        // into long filaments that slide past one another
+        const gust = 0.55 + 0.85*F(fy*2.6 + T*0.017, 11.3);
+        const sx = T*gust*0.30;
+        for (let x = 0; x < cols; x++)
+          H[y*cols+x] = 0.5 + 0.34*Math.sin((x*0.055 + y*0.020) - T*0.068)
+                            + 0.30*(F(x*0.055 - sx, y*0.115) - 0.5);
+      }
+    },
+    bump: 25, contrast: 1.32, amb: 0.05, dif: 0.56, hgt: 0.10,
+    dither: 1,
+    persist: reduce ? 0 : 0.94,   // each cell keeps a decaying memory — this is what leaves the wake
+    ink: ["#1c1c1c", "#6c6c6c"]
+  }]
+});
+</script>
+</body>
+</html>

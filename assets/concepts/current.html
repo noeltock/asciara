@@ -1,0 +1,22 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — current</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="../next/nx.js"></script><script src="compat.js"></script><script>
+// current — a slow river surface: domain warp that rotates the field, so it swirls in eddies.
+const LIGHT=new URLSearchParams(location.search).has('light');
+if(LIGHT)document.documentElement.style.background=document.body.style.background="#fbfbfb";
+const F=ASCIARA.fbm; let H=null;
+ASCIARA({ fps:30, bg:LIGHT?"#fbfbfb":"#080808",
+  ink:LIGHT?["#ececec","#9a9a9a"]:["#161616","#707070"],
+  resize(c,r){H=new Float32Array(c*r);},
+  compute(buf,cols,rows,t){
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+      const wx=F(x*0.045, y*0.09 + t*0.06);
+      const wy=F(x*0.045+9.2, y*0.09+4.7 - t*0.05);
+      H[y*cols+x]=F(x*0.05 + 3.0*wx + t*0.02, y*0.10 + 3.0*wy);  // swirling eddies, slow downstream drift
+    }
+    litShade(H,buf,cols,rows,{bump:32,hgt:0.12});
+  }
+});
+</script>

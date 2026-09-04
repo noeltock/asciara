@@ -1,0 +1,23 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — swell</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="../next/nx.js"></script><script src="compat.js"></script><script>
+// swell — deep-ocean ground swell: two long, slow crossing wave trains plus a little drifting chop.
+const LIGHT=new URLSearchParams(location.search).has('light');
+if(LIGHT)document.documentElement.style.background=document.body.style.background="#fbfbfb";
+const F=ASCIARA.fbm; let H=null;
+ASCIARA({ fps:30, bg:LIGHT?"#fbfbfb":"#080808",
+  ink:LIGHT?["#ececec","#9a9a9a"]:["#161616","#707070"],
+  resize(c,r){H=new Float32Array(c*r);},
+  compute(buf,cols,rows,t){
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+      const a=Math.sin((x*0.10 + y*0.05) - t*0.55);
+      const b=0.45*Math.sin((x*0.06 - y*0.10) - t*0.38 + 1.3);
+      const chop=0.16*F(x*0.22 + t*0.10, y*0.22);
+      H[y*cols+x]=0.5+0.42*(0.62*a+0.38*b)+chop;
+    }
+    litShade(H,buf,cols,rows,{bump:30,hgt:0.14});
+  }
+});
+</script>

@@ -22,13 +22,15 @@
 ![zero install](https://img.shields.io/badge/run-via%20uv,%20zero%20install-DE5FA7)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 
-<sub><i>Tip: drop a <code>demos/calm-loop.gif</code> at the top to make this README breathe.</i></sub>
+<br>
+
+<img src="demos/calm-loop.gif" width="760" alt="A calm, seamlessly looping ASCII field — a lit surface flowing under a fixed light">
 
 </div>
 
 ---
 
-**Contents:** [Why](#why) · [What you get](#-what-you-get) · [Backgrounds](#-three-backgrounds) · [Quick start](#-quick-start) · [The look](#-the-look) · [Levers](#%EF%B8%8F-the-levers) · [How it works](#%EF%B8%8F-how-it-works) · [Requirements](#-requirements) · [Troubleshooting](#-troubleshooting) · [License](#-license)
+**Contents:** [Why](#why) · [What you get](#-what-you-get) · [Backgrounds](#-living-backgrounds) · [Quick start](#-quick-start) · [The look](#-the-look) · [Levers](#%EF%B8%8F-the-levers) · [How it works](#%EF%B8%8F-how-it-works) · [Requirements](#-requirements) · [Troubleshooting](#-troubleshooting) · [License](#-license)
 
 ---
 
@@ -45,27 +47,70 @@ asciara lives in that tension. It treats the character grid as a medium with its
 
 - 🖼️ **Dual-channel image conversion.** A luminance ramp paints the tones; a **Sobel edge pass** lays directional glyphs (`| / - \`) along the contours. That structural layer is the soul, the part naive generators skip.
 - 🌫️ **Calm, seamless looping animation.** A flow field that drifts and breathes, sampled around a circle in time so the loop closes with no seam. Encoded to GIF / MP4 / WebM with clean palettes.
-- 🌑 **Living backgrounds, dark or light.** `hero2` (a lit, flowing surface), `dissolve` (a logo as a static isometric 3D prism), `logo-3d` (that prism rotating 360°), and `contours` (slow ridge lines). Each self-contained, each with a `?light` mode, no build step, no dependencies.
+- 🌑 **Living backgrounds, dark or light.** `billow` (a lit, flowing surface), `monolith` (a logo as a static isometric 3D prism), `gyre` (that prism rotating 360°), and `contours` (slow ridge lines). Each self-contained, each with a `?light` mode, no build step, no dependencies.
 - 🧊 **Software 3D, no WebGL.** A logo extruded into a real prism, miter-sharp corners, two-shade isometric faces, and a full turntable rotation — done with a point cloud rotated each frame and a z-buffer. No three.js, no GSAP.
 - 🎚️ **Shades of grey or monochrome.** Graded greyscale for depth, or flat monochrome where the form reads purely through *which glyph* sits in each cell.
 - 📺 **Old-terminal mode.** Throttle the refresh to a slow, stepped cadence that feels like a CRT waking up.
 - 🔤 **Honest ramps.** Character sets are **coverage-ordered** (measured ink per glyph), including a `web` ramp of code symbols (`@ / : ; < > # %`). Bring your own alphabet and it gets ordered correctly.
 - 🔒 **Local, license-clean, public-ready.** Pillow + numpy via `uv`, ffmpeg, OFL fonts (Geist Mono, Iosevka), Apache/MIT only. No API keys, no cloud, no per-image fees.
 
-## 🌑 Three backgrounds
+## 🌑 Living backgrounds
 
-The heart of asciara is a small set of **living backgrounds** — subtle, organic, slow. Each renders to a single full-bleed canvas (sharp on Retina), in Geist Mono Light, greyscale, and ships a **dark and a light** mode (add `?light` to the URL). The subtlety is one dial: the **`ink`** value-band, a `[faint, dense]` pair the glyph greys interpolate within. Narrow + near the background is a whisper (dark on barely-less-dark, or white on faint grey); widen it for presence.
+The heart of asciara is a set of **living backgrounds** — subtle, organic, slow. Each renders to a
+single full-bleed canvas (sharp on Retina), in Geist Mono Light, greyscale, with a **dark and a
+light** mode (add `?light`). The subtlety is one dial: the **`ink`** value-band, a `[faint, dense]`
+pair the glyph greys interpolate within. Narrow and near the background is a whisper; widen it for
+presence.
 
-| Piece | What it is | Open |
-|---|---|---|
-| **hero2** | a lit, flowing surface — domain-warped fBm shaded by its normals; folds and depth. The signature. | [`assets/hero2.html`](assets/hero2.html) + `?light` |
-| **dissolve** | the Accelerate logo as a static **isometric 3D prism** (built from `Δ % A C > < =`), popping out of the hero2 field with a faded moat around it | [`assets/concepts/dissolve.html`](assets/concepts/dissolve.html) + `?light` |
-| **logo-3d** | the same prism **rotating 360°** about its vertical axis — software 3D, no WebGL | [`assets/concepts/logo-3d.html`](assets/concepts/logo-3d.html) + `?light` |
-| **contours** | slow topographic ridge lines, morphing | [`assets/concepts/contours.html`](assets/concepts/contours.html) + `?light` |
+<img src="demos/hero-billow.png" width="760" alt="A still frame: a lit ASCII surface with folds and depth, drawn in graded greys on near-black">
 
-Browse all of them, dark and light, from [`assets/concepts/index.html`](assets/concepts/index.html). Drop one into a page as-is, or behind your content as a `position:fixed` backdrop.
+They are collected in one gallery. Serve the repo root and browse every piece side by side:
 
-Backgrounds share a tiny engine ([`assets/concepts/engine.js`](assets/concepts/engine.js)) that owns the DPR-sharp canvas, the font, the fps throttle, and a **two-layer render**: a *field* layer (mapped through `ramp`, coloured within the `ink` band) and an independent *overlay* layer that shades a logo within its own `overlay` band. Keeping those layers separate is the whole trick — brightening the logo never touches the field. Full lever tables and the technique notes (lit surfaces, coverage-ordered ramps, isometric two-shade extrusion, miter-sharp corners, the rotation point-cloud, flicker fixes) live in [`references/hero-levers.md`](references/hero-levers.md).
+```bash
+python3 -m http.server 8412     # then open http://localhost:8412/
+```
+
+`/` greets you with a full-screen composition and a control bar — switch pieces, change the matte,
+and hit **copy config** to paste a setting you like straight back into the source.
+`/gallery.html` shows all nineteen at once.
+
+**current** — `assets/` and `assets/concepts/`, on the original zero-dependency engine.
+
+| Piece | What it is |
+|---|---|
+| **billow** | a lit, flowing surface — domain-warped fBm shaded by its normals. The signature |
+| **mist** | a simple drifting noise field in a `<pre>`, one grey. Quiet, minimal |
+| **contours** · **swell** · **dunes** · **tide** | topographic ridges, ocean swell, migrating dunes, a surface breathing |
+| **plume** · **caustics** · **aurora** · **wind** · **current** | rising smoke, pool-floor light, curtains, gusts, river eddies |
+| **monolith** · **gyre** | a logo as a static isometric 3D prism, and the same prism rotating 360° — software 3D, no WebGL |
+
+**next** — `assets/next/`, on the `nx.js` engine. Same zero-dependency rule, more capability:
+
+| Piece | What it is |
+|---|---|
+| **ridge** | drifting vortices, with contour glyphs tracing where the flow turns |
+| **glint** | rain rings from wandering sources, with a broad specular sheen on the crests |
+| **strata** | three depth planes, each with its own motion, occluding one another |
+| **phosphor** | sheared gusting filaments that leave a decaying wake |
+| **mark** | a logo that is not drawn — it is the patch of water that has stopped moving |
+
+**lab** — `assets/lab/`, the one place three.js is allowed, to test what a GPU actually buys.
+
+### The matte
+The `next` pieces add a **matte**: a lattice of 2-3 *pixel* blocks, each at a slightly different
+value, that the finished frame is resolved onto. It is what gives a dark image a produced,
+photographed quality instead of glyphs printed on flat black. Two modes — `field` follows the
+picture and reinforces the form; `noise` owes nothing to it and reads as the surface the image sits
+on. It is **not film grain**: grain is per-pixel, random and changes every frame, so it sits *on* a
+picture; this is block-aligned, blue-noise derived and *fixed*, so the picture resolves *onto* it.
+
+Open any `next` piece directly and a control bar appears — mode, block size, strength, and a
+**copy config** button that hands you the line to paste back into the file. It is gated on not being
+in an iframe, so the gallery tiles stay clean.
+
+Backgrounds share a small engine that owns the DPR-sharp canvas, the font, the fps throttle and the
+render. Full lever tables and the technique notes live in
+[`references/backgrounds.md`](references/backgrounds.md).
 
 ## 🚀 Quick start
 
@@ -102,9 +147,11 @@ ffmpeg -y -framerate 30 -i frames/frame_%04d.png -i /tmp/pal.png -loop 0 \
 # Render an existing ascii text file
 uv run --with pillow --with numpy python $S render art.txt art.png
 
-# Backgrounds: open one (add ?light for light mode), tune the CONFIG block at the top
-open ~/.claude/skills/asciara/assets/hero2.html               # also concepts/dissolve.html, concepts/contours.html
-open ~/.claude/skills/asciara/assets/concepts/index.html      # browse all three, dark + light
+# Backgrounds: serve the repo root, then browse the gallery
+python3 -m http.server 8412   # http://localhost:8412/gallery.html
+
+# Check a background without screenshotting it — one frame, headless, in about a second
+node tools/measure.js assets/next/ridge.html 12
 ```
 </details>
 
@@ -120,7 +167,7 @@ Built-in ramps: `mono10`, `fine`, `calm`, `drift`, `soft`, `blocks`, `web`. Buil
 
 ## 🎛️ The levers
 
-Each background is tunable from a single `CONFIG` block at the top of its file. The most important dial is **`ink`** — the value-band that sets how loud or subtle it is. Full table and the technique behind each in [`references/hero-levers.md`](references/hero-levers.md).
+Each background is tunable from a single `CONFIG` block at the top of its file. The most important dial is **`ink`** — the value-band that sets how loud or subtle it is. Full table and the technique behind each in [`references/backgrounds.md`](references/backgrounds.md).
 
 | Lever | Does |
 |---|---|
@@ -172,10 +219,17 @@ Two ideas do the heavy lifting: characters carry **light**, not just density (a 
 |---|---|---|
 | **uv** | runs the Python engine with Pillow + numpy, zero install | [astral.sh/uv](https://docs.astral.sh/uv/) |
 | **ffmpeg** | encoding animation frames to GIF / MP4 / WebM | `brew install ffmpeg` |
-| **A monospace font** | rendering | system fonts auto-detected; web heroes load **Geist Mono** (OFL) |
+| **A monospace font** | rendering | system fonts auto-detected; backgrounds load **Geist Mono** + **Geist Pixel** (OFL) |
+| **python3** | serving the backgrounds locally (`python3 -m http.server`) | preinstalled on macOS |
+| **node** | `tools/measure.js`, the headless one-frame check | optional; only for tuning |
 
 > [!IMPORTANT]
-> No browser, no API key, no account. Image and animation rendering are fully local. The web heroes are plain HTML/JS files, open them directly or drop them into a page.
+> No API key, no account, no build step, no npm. Everything runs locally.
+>
+> **Serve the backgrounds over `http://`, don't open them with `file://`.** Each page is still a
+> single self-contained file, but the navigation links are absolute (`/`, `/gallery.html`), so on
+> `file://` the piece renders while the nav points at your filesystem root. `python3 -m http.server`
+> is all it needs. Dropping one into your own site works normally.
 
 ## 🔧 Troubleshooting
 

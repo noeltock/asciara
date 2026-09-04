@@ -2,7 +2,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
 <title>asciara — contours</title>
 <style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
-<canvas></canvas><script src="engine.js"></script><script>
+<canvas></canvas><script src="../next/nx.js"></script><script src="compat.js"></script><script>
 // contours — topographic ridge lines morphing slowly. Subtle dark-on-darker band, faint floor.
 const LIGHT = new URLSearchParams(location.search).has('light');  // add ?light for light mode
 if (LIGHT) document.documentElement.style.background = document.body.style.background = "#fbfbfb";

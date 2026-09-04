@@ -1,0 +1,27 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — mist</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="next/nx.js"></script><script>
+// mist — the quiet one. A single drifting field, barely lit, in a narrow band close to the ground.
+// Nothing to read as form; it is texture and slow movement, meant to sit behind dense content.
+//
+// It used to render into a <pre> with its own hash-noise loop, which left it as the one piece with
+// no matte, no control bar, no light mode and no adaptive fill. Same character, now on nx.js.
+const W = NX.warp;
+NX({
+  fps: 30,
+  matte: { mode: 'noise', cell: 3, depth: 0.26, bed: 0.20, bedSteps: 2, amp: 20, contrast: 0.50, speed: 0.05, wobble: 0.50 },
+  layers: [{
+    height(x, y){ return W(x, y, 1.2, 3); },
+    span: 1.9,
+    bump: 1.3,                       // shallow relief — it should never resolve into folds
+    contrast: 0.94,
+    amb: 0.04, hgt: 0.10, dif: 0.44,
+    drift: [-0.9, -0.22], driftSpeed: 0.028, evolve: 0.06,
+    dither: 1,
+    ink:      ["#171717", "#4e4e4e"],
+    inkLight: ["#f0f0f0", "#bdbdbd"]
+  }]
+});
+</script>

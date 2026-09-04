@@ -17,7 +17,9 @@
     const C = Object.assign({
       ramp: " .:;/<>=?*T%&#@N", fontSize: 15, fontWeight: 300,
       fontFamily: "'Geist Mono','JetBrains Mono',Menlo,monospace",
-      bg: "#080808", shading: true, mono: "#cfcfcf", fps: 30, levels: 12, maxCols: 160, pad: 2,
+      bg: "#080808", shading: true, mono: "#cfcfcf", fps: 30, levels: 12, pad: 2,
+      maxCells: 20000, maxFontSize: 34,   // fill any viewport; grow glyphs rather than clip the field
+      //                                    (this engine does less per cell than nx.js, so it affords more)
       ink: ["#4d4d4d", "#ffffff"],     // [faint, dense] colour band for the FIELD layer
       overlay: ["#3a3a3a", "#ffffff"]  // [shadow, lit] band for the OVERLAY layer (e.g. a shaded 3D logo)
     }, concept);
@@ -32,14 +34,34 @@
       cv.style.width = W+'px'; cv.style.height = Hh+'px';
       cv.width = Math.round(W*dpr); cv.height = Math.round(Hh*dpr);
       ctx.setTransform(dpr,0,0,dpr,0,0);
-      ctx.font = C.fontWeight+' '+C.fontSize+'px '+C.fontFamily; ctx.textBaseline = 'top';
-      adv = ctx.measureText('M').width + C.pad; lineH = C.fontSize*1.06 + C.pad;
-      cols = Math.min(C.maxCols, Math.ceil(W/adv)); rows = Math.ceil(Hh/lineH);
+      // Fill the viewport at any size — see the note in nx.js. A hard column cap left dead space
+      // on a wide screen; bound the WORK instead and let the glyphs grow when it would be exceeded.
+      let fs = C.fontSize;
+      for (;;){
+        ctx.font = C.fontWeight+' '+fs+'px '+C.fontFamily;
+        adv = ctx.measureText('M').width + C.pad; lineH = fs*1.06 + C.pad;
+        cols = Math.ceil(W/adv); rows = Math.ceil(Hh/lineH) + 1;
+        if (cols*rows <= C.maxCells || fs >= C.maxFontSize) break;
+        fs += 1;
+      }
+      ctx.textBaseline = 'top';
       buf = new Float32Array(cols*rows); ov = new Array(cols*rows).fill(null);
       if (concept.resize) concept.resize(cols, rows);
     }
+    const FONT_PROBE = C.fontWeight + ' ' + C.fontSize + 'px ' + C.fontFamily;
     addEventListener('resize', fit); fit();
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+    // The layout depends on the WEBFONT's advance width, so it has to be re-measured once the font
+    // actually arrives. `fonts.ready` alone is not enough: it can resolve BEFORE the face has even
+    // been requested (nothing is pending yet), in which case the later load never triggers a
+    // refit — `cols` stays sized for the fallback's wider advance while glyphs draw at the real
+    // font's narrower one, so they bunch into the left of the canvas and the right stays empty.
+    // Force the load, listen for it, and re-check a couple of times as a backstop.
+    if (document.fonts){
+      const probe = FONT_PROBE;
+      try { document.fonts.load(probe).then(fit, function(){}); } catch (e) {}
+      if (document.fonts.ready) document.fonts.ready.then(fit);
+      if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', fit);
+    }
 
     const ramp = C.ramp, n = ramp.length-1, Lc = C.levels;
     function hexrgb(h){ h = h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }

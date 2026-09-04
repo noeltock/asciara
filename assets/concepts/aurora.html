@@ -1,0 +1,24 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — aurora</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="../next/nx.js"></script><script src="compat.js"></script><script>
+// aurora — slow vertical curtains of light, waving and drifting sideways, brightest through the middle band.
+const LIGHT=new URLSearchParams(location.search).has('light');
+if(LIGHT)document.documentElement.style.background=document.body.style.background="#fbfbfb";
+const F=ASCIARA.fbm;
+ASCIARA({ fps:30, bg:LIGHT?"#fbfbfb":"#080808",
+  ink:LIGHT?["#efefef","#8a8a8a"]:["#141414","#9a9a9a"],
+  compute(buf,cols,rows,t){
+    for(let y=0;y<rows;y++){
+      const vy=y/rows, prof=Math.exp(-Math.pow((vy-0.46)/0.34, 2));  // vertical glow profile (fade top/bottom)
+      for(let x=0;x<cols;x++){
+        const wob=0.9*F(x*0.04, y*0.03 + t*0.06);               // curtains wave and lean
+        const band=Math.sin(x*0.10 + wob*6.0 + t*0.18);
+        const curtain=Math.pow(Math.max(0, band), 1.3);         // fuller curtains
+        buf[y*cols+x]=(0.10 + 0.95*curtain)*prof;               // faint base glow + the curtains
+      }
+    }
+  }
+});
+</script>

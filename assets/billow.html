@@ -1,0 +1,31 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link rel=preconnect href="https://fonts.googleapis.com"><link rel=preconnect href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — billow</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="next/nx.js"></script><script>
+// billow — the signature: a LIT, FLOWING SURFACE. A domain-warped fBm height field shaded by its
+// own surface normals, mapped smoothly through the full ramp, so you read folds, billows and
+// depth rather than a flat wave texture.
+//
+// This piece used to carry its own private copy of the engine, which is why it was the last one
+// without a matte, a control bar or adaptive fill. The field below is unchanged — same warp, same
+// light, same drift — it just runs on nx.js now, so it gets all of that for free.
+const W = NX.warp;
+NX({
+  fps: 30,   // as above — the drift is far too slow to need 60
+  matte: { mode: 'noise', cell: 3, depth: 0.26, bed: 0.26, bedSteps: 2, amp: 20, contrast: 0.50, speed: 0.06, wobble: 0.50 },
+  layers: [{
+    height(x, y){ return W(x, y, 1.7); },
+    span: 1.5,
+    bump: 1.9,
+    light: [-0.5, -0.6, 0.62],
+    contrast: 1.05,
+    amb: 0.08, hgt: 0.10, dif: 0.92,
+    drift: [-0.85, -0.32], driftSpeed: 0.05, evolve: 0.12,
+    srgbBand: true,                       // keep the tone exactly as it was authored
+    ink:      ["#161616", "#707070"],
+    inkLight: ["#ececec", "#9a9a9a"]
+  }]
+});
+</script>

@@ -1,0 +1,22 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — dunes</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="../next/nx.js"></script><script src="compat.js"></script><script>
+// dunes — sand dunes slowly migrating: ridged fBm makes crests; strong relief reads as lit 3D dunes.
+const LIGHT=new URLSearchParams(location.search).has('light');
+if(LIGHT)document.documentElement.style.background=document.body.style.background="#fbfbfb";
+const F=ASCIARA.fbm; let H=null;
+ASCIARA({ fps:30, bg:LIGHT?"#fbfbfb":"#080808",
+  ink:LIGHT?["#ececec","#9a9a9a"]:["#141414","#7a7a7a"],
+  resize(c,r){H=new Float32Array(c*r);},
+  compute(buf,cols,rows,t){
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+      const q=F(x*0.035 + t*0.03, y*0.05);                      // gentle domain wander
+      const n=F(x*0.045 + 1.5*q + t*0.035, y*0.07 + 1.5*q);     // slow migration
+      H[y*cols+x]=Math.pow(1-Math.abs(2*n-1), 1.4);             // ridge -> dune crest
+    }
+    litShade(H,buf,cols,rows,{bump:46,hgt:0.06,light:[-0.62,-0.5,0.55]});
+  }
+});
+</script>

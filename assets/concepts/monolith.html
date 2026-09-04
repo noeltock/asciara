@@ -3,7 +3,7 @@
 <title>asciara — logo</title>
 <style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
 <canvas></canvas><script src="engine.js"></script><script>
-// logo — TWO LAYERS: the background IS hero2's lit field (untouched), and the logo is a separate
+// logo — TWO LAYERS: the background IS billow's lit field (untouched), and the logo is a separate
 // overlay layer (its own bright colour) built from Accelerate's glyphs, sitting in a cleared moat.
 const LIGHT = new URLSearchParams(location.search).has('light');
 if (LIGHT) document.documentElement.style.background = document.body.style.background = "#fbfbfb";
@@ -11,7 +11,7 @@ const F = ASCIARA.fbm, HASH = ASCIARA.hash;
 const LOGO_SRC = "logo.svg";
 const ACC = ["Δ","%","A","C",">","<","="];   // the Accelerate glyph set the mark is composed from
 
-// --- hero2 lit-surface field (the background layer) ---
+// --- billow lit-surface field (the background layer) ---
 const SPAN = 1.5, BUMP = 1.9, CONTRAST = 1.05;
 const LV = (() => { const l = [-0.5,-0.6,0.62], m = Math.hypot(l[0],l[1],l[2]); return [l[0]/m,l[1]/m,l[2]/m]; })();
 const FLOW = [-0.85,-0.32], FLOWSPEED = 0.05, EVOLVE = 0.12;
@@ -100,7 +100,7 @@ function dilate(src, cols, rows, rad){   // separable max filter -> expand the m
 ASCIARA({
   fps: 30,
   bg: LIGHT ? "#fbfbfb" : "#080808",
-  ink: LIGHT ? ["#ececec", "#9a9a9a"] : ["#161616", "#707070"],   // FIELD layer = exactly hero2's band
+  ink: LIGHT ? ["#ececec", "#9a9a9a"] : ["#161616", "#707070"],   // FIELD layer = exactly billow's band
   overlay: LIGHT ? ["#c8c8c8", "#101010"] : ["#343434", "#ffffff"],  // LOGO band [shadow, lit] -> 3D shading
   resize(cols, rows){ Hgrid = new Float32Array(cols*rows); buildMask(cols, rows); },
   compute(buf, cols, rows, t, ov){

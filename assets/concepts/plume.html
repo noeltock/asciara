@@ -1,0 +1,22 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — plume</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="../next/nx.js"></script><script src="compat.js"></script><script>
+// plume — slow rising smoke / heat haze: the field is domain-warped and advected steadily UPWARD.
+const LIGHT=new URLSearchParams(location.search).has('light');
+if(LIGHT)document.documentElement.style.background=document.body.style.background="#fbfbfb";
+const F=ASCIARA.fbm; let H=null;
+ASCIARA({ fps:30, bg:LIGHT?"#fbfbfb":"#080808",
+  ink:LIGHT?["#ececec","#a4a4a4"]:["#161616","#6a6a6a"],
+  resize(c,r){H=new Float32Array(c*r);},
+  compute(buf,cols,rows,t){
+    const rise=t*0.18;                                          // smoke climbs
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+      const q=F(x*0.06, y*0.10 - rise);                         // warp scrolls up
+      H[y*cols+x]=F(x*0.06 + 2.2*q, y*0.10 + 2.2*q - rise);     // curling, rising column
+    }
+    litShade(H,buf,cols,rows,{bump:24,hgt:0.16,contrast:0.95});
+  }
+});
+</script>
