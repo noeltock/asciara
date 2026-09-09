@@ -1,6 +1,6 @@
-/* compat.js — run the original concepts on the nx.js engine.
+/* compat.js — run the original concepts on the gl.js engine.
    The older pieces were written against `ASCIARA({ compute(buf, cols, rows, t) })`, where the
-   piece fills `buf` with FINAL BRIGHTNESS (it does its own lighting via litShade). nx.js expects a
+   piece fills `buf` with FINAL BRIGHTNESS (it does its own lighting via litShade). gl.js expects a
    height field and lights it itself — but it also accepts a `shadedGrid` layer, which is exactly
    the older contract under a different name.
 

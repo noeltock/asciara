@@ -17,9 +17,9 @@ Backgrounds now sit in three groups, browsable side by side from `gallery.html`
 
 | Loadout | Where | Engine | Dependencies |
 |---|---|---|---|
-| **landing** | `index.html` (repo root) | `next/nx.js` | none |
-| **next** | `assets/next/*.html` | `next/nx.js` | none |
-| **current** | `assets/billow.html`, `assets/mist.html`, 9 pieces in `assets/concepts/` | `next/nx.js` (concepts via `concepts/compat.js`) | none |
+| **landing** | `index.html` (repo root) | `assets/gl/gl.js` | WebGL2 |
+| **next** | `assets/next/*.html` | `assets/gl/gl.js` | WebGL2 |
+| **current** | `assets/billow.html`, `assets/mist.html`, 9 pieces in `assets/concepts/` | `assets/gl/gl.js` (concepts via `concepts/compat.js`) | WebGL2 |
 | **current** | `concepts/monolith.html`, `concepts/gyre.html` | `concepts/engine.js` + `field.js` | none |
 | **lab** | `assets/lab/*.html` | `assets/lab/gpuascii.js` | three.js via CDN importmap |
 
@@ -28,20 +28,20 @@ is the single grid of everything, in sections by loadout. Serve the repo root an
 
 `billow` and `mist` were the last holdouts — `billow` carried its own private copy of the engine and
 `mist` rendered into a `<pre>`, which is why neither had a matte, a control bar, light mode or
-adaptive fill. Both now run on `nx.js` with their fields unchanged; `billow` keeps `srgbBand: true`
+adaptive fill. Both now run on `gl.js` with their fields unchanged; `billow` keeps `srgbBand: true`
 so its tone is exactly as authored.
 
 
 ### The older concepts run on the newer engine
 `concepts/compat.js` is a shim, not a rewrite. The old contract is
 `ASCIARA({ compute(buf, cols, rows, t) })`, where the piece fills `buf` with FINAL BRIGHTNESS —
-it does its own lighting via `litShade`. `nx.js` accepts exactly that as a `shadedGrid` layer, so
+it does its own lighting via `litShade`. `gl.js` accepts exactly that as a `shadedGrid` layer, so
 every concept keeps its own motion and its own lighting while inheriting the matte, the control bar
 and switcher, adaptive fill, blue-noise dithering and linear-light greys.
 
 Two pieces stay on `engine.js`: **monolith** and **gyre** use its second OVERLAY layer, which has
 its own colour band and per-cell `{c, b}` shaded glyphs for the logo. There is no equivalent in
-`nx.js` and faking one is not worth it. They therefore have no control bar.
+`gl.js` and faking one is not worth it. They therefore have no control bar.
 
 **Ported pieces set `srgbBand: true`.** Linear-light interpolation is the correct maths and
 everything new uses it, but switching an already-tuned piece to it lifts its midtones by ~16 levels
@@ -54,7 +54,7 @@ specific question rather than to ship: what does a GPU buy that canvas-2D cannot
 far is "less than you would think" — see `## The lab` at the bottom.
 
 ## The shared engine — `assets/concepts/engine.js`
-**Only `monolith.html` and `gyre.html` still run on this** — the other concepts moved to `nx.js` via
+**Only `monolith.html` and `gyre.html` still run on this** — the other concepts moved to `gl.js` via
 `compat.js` (see above). A concept supplies a `compute(buf, cols, rows, t, ov)` callback; the engine owns the canvas, DPR scaling, font, fps throttle, and the two-layer render. Helpers exposed: `ASCIARA.noise(x,y)`, `ASCIARA.fbm(x,y)`, `ASCIARA.hash(ix,iy)`.
 
 Two render layers, drawn back-to-front:
@@ -79,8 +79,8 @@ Two render layers, drawn back-to-front:
 
 ## billow.html — the lit surface
 `billow` used to carry its own private copy of the engine, with its own CONFIG block (`shading`,
-`mono`, `flow`, `flowSpeed`, and so on). It now runs on `nx.js` like everything else, so its levers
-are the standard layer levers documented under **The next engine** below — `span`, `bump`, `light`,
+`mono`, `flow`, `flowSpeed`, and so on). It now runs on `gl.js` like everything else, so its levers
+are the standard layer levers documented under **The WebGL2 engine** below — `span`, `bump`, `light`,
 `contrast`, `amb`/`hgt`/`dif`, `drift`/`driftSpeed`/`evolve`, `ink`.
 
 It keeps `srgbBand: true`, which preserves the exact tone it was originally art-directed to.
@@ -135,10 +135,11 @@ The Accelerate triangle, extruded into a 2-shade isometric solid, on the billow 
 ### QA habit
 14. **Verify by reading pixels, not by trusting a screenshot.** Sample the canvas (`getImageData`) for brightness spread, empty-ring width, silhouette width over time (rotation), flicker churn. Threshold carefully — bright field cells can pollute a "find the logo" scan (isolate the logo with a high threshold, e.g. `>150`).
 
-## The next engine — `assets/next/nx.js`
-A second engine, zero-dependency like the first. A piece supplies MOTION (a height field) and its
+## The WebGL2 engine — `assets/gl/gl.js`
+The shared engine. A piece supplies MOTION (a height field) and its
 own LOOK; the engine owns lighting, glyph choice, layering and the matte. Six things it does that
-`engine.js` does not, each of which was a fix for something that visibly failed:
+`engine.js` does not, each of which was a fix for something that visibly failed. `assets/next/nx.js`
+remains the untouched Canvas reference implementation for this contract:
 
 | Capability | What it is | Why |
 |---|---|---|
@@ -152,12 +153,12 @@ own LOOK; the engine owns lighting, glyph choice, layering and the matte. Six th
 ### Filling the viewport
 There is no column cap. An earlier `maxCols` made the field stop part-way across a wide screen and
 leave dead space — and capping width is the wrong lever anyway: what needs bounding is the WORK.
-Both engines now keep the authored glyph size until the cell count would exceed `maxCells`, then
+The GL engine keeps the authored glyph size until the cell count would exceed `maxCells`, then
 step the font size up. The piece spans the full width on any monitor; on a very large one it reads
 as the same composition at a larger scale rather than a smaller one pinned to a corner.
 
 Measured on a 3440x1440 display: ~26k cells ran at 18fps, below the engine's own 30fps target, so
-the `nx.js` budget is 15000. The bed is also rebuilt at `bedFps` (default 12) rather than every
+the `gl.js` budget is 15000. The bed is also rebuilt at `bedFps` (default 12) rather than every
 frame — it moves far too slowly for the difference to be visible, and rebuilding it at full rate
 was the difference between 2fps and 60fps at that size.
 
@@ -223,7 +224,7 @@ Note coverage is ~100% for every good piece: **every cell gets a glyph.** The su
 space, it is that the whole image sits in a narrow band near the ground and the form reads through
 glyph density. Chasing "fewer cells" is the wrong instinct.
 
-## The matte — a sub-glyph pixel lattice (`assets/next/nx.js`)
+## The matte — a sub-glyph pixel lattice (`assets/gl/gl.js`)
 
 Everything else in this engine works at the character cell, roughly 11x18 device pixels. The matte
 works an order of magnitude finer: a lattice of 2-3 PIXEL blocks, each sitting at a slightly
@@ -250,7 +251,7 @@ the repo grouped by loadout · **off / field / noise / screen** · the dials for
 - **copy config** puts the exact line on the clipboard to paste back into the piece. This is the
   point of the whole bar: tuning that cannot get back into the source is just fiddling.
 - The bar wraps onto extra rows on a narrow window rather than pushing controls off the edge.
-- The switcher is built from `CATALOGUE` at the top of `nx.js` — add a background there and it
+- The switcher is built from `CATALOGUE` at the top of `gl.js` — add a background there and it
   appears in every other background's switcher.
 
 Query overrides work without the bar too: `?matte=field|noise|screen|off`, `?cell=`, `?amp=`,
@@ -344,7 +345,7 @@ toward the ends while keeping the levels. Contrast and granularity stopped fight
 - **The field lookup stays at glyph resolution while the matte stays sub-glyph.** The material still
   changes at the finer block scale without paying for field interpolation at every block.
 - **The mask must actually be blue noise, and this is worth checking.** The first mask generated
-  for `nx.js` had a bug in void-and-cluster's third phase — it searched for the zero with the
+  for the Canvas reference had a bug in void-and-cluster's third phase — it searched for the zero with the
   highest energy measured over the ONES, when the algorithm requires the tightest cluster of zeros
   found via the INVERSE pattern's energy. The mask came out carrying large light and dark regions,
   and once tiled every 32 blocks those regions read on screen as a regular grid of soft round
@@ -385,10 +386,8 @@ backticks and closed the template early.
   `<span>`s and its colour mode drops the charset from 10 glyphs to 7. Headless WebGL is unreliable,
   which matters when screenshots are the verification method. What GPU genuinely unlocks — 500x200
   grids, live 3D scene normals, particle-fed cells — are wins for a bolder piece than this one.
-- **Two things WERE worth stealing from the GPU world, and both are already in `nx.js` at zero cost:**
-  tile-level directional voting for the contour channel, and (not yet done) pre-baking glyphs to an
-  offscreen bitmap and blitting instead of `fillText`, which is a documented ~10x win and would
-  raise the cell ceiling well past today's ~6000.
+- **The GL engine now uses the GPU where it changes the result:** tile-level directional voting for
+  the contour channel and a glyph atlas rather than per-cell `fillText`.
 - **Blue noise beats Bayer** for the dither mask; error diffusion (Floyd-Steinberg) is disqualified
   for animation because it is scan-order sequential and crawls between frames.
 - **Prior art:** `~/dev/accelerate-website/static/` has a decision-documented branch where this was

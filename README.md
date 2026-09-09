@@ -74,7 +74,7 @@ python3 -m http.server 8412     # then open http://localhost:8412/
 and hit **copy config** to paste a setting you like straight back into the source.
 `/gallery.html` shows all nineteen at once.
 
-**current** — `assets/` and `assets/concepts/`, on the original zero-dependency engine.
+**current** — `assets/` and `assets/concepts/`, on the shared WebGL2 engine (except the two independent software-3D logo pieces).
 
 | Piece | What it is |
 |---|---|
@@ -84,7 +84,7 @@ and hit **copy config** to paste a setting you like straight back into the sourc
 | **plume** · **caustics** · **aurora** · **wind** · **current** | rising smoke, pool-floor light, curtains, gusts, river eddies |
 | **monolith** · **gyre** | a logo as a static isometric 3D prism, and the same prism rotating 360° — software 3D, no WebGL |
 
-**next** — `assets/next/`, on the `nx.js` engine. Same zero-dependency rule, more capability:
+**next** — `assets/next/`, on the shared `assets/gl/gl.js` engine. `assets/next/nx.js` stays in place as the Canvas reference implementation.
 
 | Piece | What it is |
 |---|---|
