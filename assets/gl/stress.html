@@ -1,0 +1,59 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300&display=swap" rel=stylesheet>
+<title>asciara — gl stress</title>
+<style>html,body{margin:0;height:100%;background:#080808;overflow:hidden}canvas{display:block}</style>
+<canvas></canvas><script src="gl.js"></script><script>
+// stress — six material planes: grain, ruled bands, and a few decisive contours.
+const F = GL.fbm;
+GL({ fps: 30, layers: [
+  { matte: { mode: 'noise', cell: 3, depth: 0.22, bed: 0.22, bedSteps: 5, amp: 28, contrast: 0.45, speed: 0.04, wobble: 0.40, curve: 'bell', floor: 0.22 }, gridSpace: true,
+    heightGrid(H, cols, rows, t){
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)
+        H[y*cols+x]=0.48+0.18*Math.sin(x*.018+y*.012-t*.022)+0.07*F(x*.072+t*.005,y*.072);
+    }, bump:15, contrast:1.00, gamma:1.65, amb:.18, dif:.35, hgt:.10, dither:1,
+    ink: GL.LIGHT ? ['#f1f1f1','#d0d0d0'] : ['#0b0b0b','#242424'] },
+  { matte: { mode: 'field', cell: 4, depth: 0.26, bed: 0.30, bedSteps: 5, curve: 'bell', floor: 0.20 }, gridSpace: true,
+    heightGrid(H, cols, rows, t){
+      const cy=rows*.28;
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+        const band=Math.exp(-Math.pow((y-cy)/(rows*.17),2));
+        H[y*cols+x]=.30+.46*band*(.68+.32*Math.sin(x*.031-t*.032))+.05*F(x*.095+t*.008,y*.095);
+      }
+    }, bump:21, contrast:1.20, gamma:1.65, amb:.04, dif:.45, hgt:.09, dither:1,
+    ink: GL.LIGHT ? ['#d9d9d9','#4a4a4a'] : ['#171717','#8a8a8a'] },
+  { matte: { mode: 'screen', cell: 3, depth: 0.30, bed: 0.30, bedSteps: 4, pitch: 5, angle: 18, duty: .46, curve: 'bell', floor: 0.24 }, gridSpace: true,
+    heightGrid(H, cols, rows, t){
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+        const w=Math.sin(x*.028+y*.025-t*.052+.8);
+        H[y*cols+x]=.42+.35*Math.pow(Math.max(0,w),2.4)+.07*F(x*.105+t*.010,y*.105);
+      }
+    }, bump:27, contrast:1.30, gamma:2.75, amb:.03, dif:.52, hgt:.08, dither:1, edges:.34, edgeBoost:1.04, edgeLift:.06,
+    ink: GL.LIGHT ? ['#e6e6e6','#777777'] : ['#151515','#626262'] },
+  { matte: { mode: 'noise', cell: 4, depth: 0.24, bed: 0.24, bedSteps: 4, amp: 24, contrast: 0.38, speed: 0.05, wobble: 0.36, curve: 'bell', floor: 0.26 }, gridSpace: true,
+    heightGrid(H, cols, rows, t){
+      const cx=cols*.62,cy=rows*.62;
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+        const dx=(x-cx)/(cols*.44),dy=(y-cy)/(rows*.34);
+        H[y*cols+x]=.34+.43*Math.exp(-(dx*dx+dy*dy)*3.8)*(.70+.30*Math.sin(x*.039-y*.018-t*.041))+.05*F(x*.084+t*.007,y*.084);
+      }
+    }, bump:24, contrast:1.22, gamma:1.95, amb:.04, dif:.48, hgt:.10, dither:1,
+    ink: GL.LIGHT ? ['#e8e8e8','#626262'] : ['#171717','#747474'] },
+  { matte: { mode: 'field', cell: 3, depth: 0.28, bed: 0.28, bedSteps: 6, curve: 'bell', floor: 0.18 }, gridSpace: true,
+    heightGrid(H, cols, rows, t){
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+        const wave=Math.sin(x*.021-y*.036+t*.044)+.45*Math.sin(x*.058+y*.012-t*.025);
+        H[y*cols+x]=.39+.31*Math.pow(Math.max(0,wave*.5+.5),2.1)+.07*F(x*.115+t*.012,y*.115);
+      }
+    }, bump:29, contrast:1.34, gamma:2.50, amb:.02, dif:.50, hgt:.07, dither:1, spec:.13, shine:11, rim:.10, rimPow:3.2,
+    ink: GL.LIGHT ? ['#ececec','#868686'] : ['#1a1a1a','#777777'] },
+  { matte: { mode: 'screen', cell: 3, depth: 0.34, bed: 0.32, bedSteps: 4, pitch: 4, angle: -12, duty: .52, curve: 'bell', floor: 0.22 }, gridSpace: true,
+    heightGrid(H, cols, rows, t){
+      const horizon=rows*.73;
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+        const rise=Math.exp(-Math.pow((y-horizon)/(rows*.13),2));
+        H[y*cols+x]=.26+.54*rise*(.58+.42*Math.sin(x*.047+t*.037))+ .05*F(x*.078+t*.006,y*.078);
+      }
+    }, bump:31, contrast:1.38, gamma:2.85, amb:.02, dif:.55, hgt:.06, dither:1, edges:.40, edgeBoost:1.06, edgeLift:.08,
+    ink: GL.LIGHT ? ['#eeeeee','#595959'] : ['#1b1b1b','#a0a0a0'] }
+]});
+</script>
