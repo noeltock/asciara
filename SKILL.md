@@ -47,8 +47,8 @@ uv run --with pillow --with numpy python <dir>/scripts/ascii_tool.py render art.
   `/` is a full-screen landing composition with a control bar across the top — mode, block size,
   strength, a switcher listing every piece, and **copy config** to paste a setting you like back
   into the source. `/gallery.html` is the grid of all 19, in sections.
-  - **next** (`assets/next/`) — ridge, glint, strata, phosphor, mark. Contour glyphs with tile
-    voting, occluding depth layers, persistence, material lighting.
+  - **next** (`assets/next/`) — ridge, glint, strata, phosphor, mark, screen. Contour glyphs with
+    tile voting, per-layer mattes, persistence, material lighting.
   - **current** (`assets/`, `assets/concepts/`) — billow, mist, contours, swell, dunes, tide,
     plume, caustics, aurora, wind, current, plus the logo pieces monolith and gyre.
   - **lab** (`assets/lab/`) — GPU experiments, three.js, UNVERIFIED.

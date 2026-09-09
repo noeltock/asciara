@@ -42,3 +42,27 @@ Output is greyscale; a preset sets only ramp and density.
 - Never go below 12px cells — glyph legibility is the medium.
 - Perceptual luminance `0.3R+0.59G+0.11B`, not flat average.
 - Two palette colours max (foreground + void), optional single accent tier.
+
+## Composition notes
+
+Treat contrast as a compositional event, not a setting applied evenly. A scene can live mostly in
+the upper half of the value range and spend its full black-to-white jump on one severe boundary, or
+it can use the whole range and let the grain join the values. Full-range, even lighting makes the
+matte read as damage rather than material.
+
+Reduce architecture and other large subjects to alternating bands. A colonnade needs light face,
+dark face, light face — not ornament, openings, and surface detail. The same rule suits the Sobel
+channel: a few decisive edges carry more form than a mesh of small ones.
+
+Give the lower third room to stay unresolved. A broad foreground containing little beyond the matte
+makes the structure above it feel monumental. If scale needs stating, use one very small figure in
+the outer third, visibly moving and sometimes accompanied by an animal; around three percent of the
+frame height is enough. Keep monochrome on dark as the default.
+
+On a dark page this is a layer recipe, not a matte setting. `curve: 'bell'` puts its grain where
+the field sits near a half, so a ground at black gets nothing and reads as a flat page. Lift the
+far layer into the mid-range (ambient around 0.30, gamma near 1) but give it ink almost the page
+colour, so the bed carries the tone rather than a sheet of glyphs. Keep the near layer sparse
+(gamma 3 or more): the composite gives each cell to the frontmost layer with any ink, and a dense
+near plane hides the ground entirely. Let one subject layer keep full contrast with ink up to
+near-white; that is the single hard edge. `assets/next/screen.html` is the worked example.

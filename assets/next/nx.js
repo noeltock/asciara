@@ -93,7 +93,8 @@
       ['glint',    '/assets/next/glint.html'],
       ['strata',   '/assets/next/strata.html'],
       ['phosphor', '/assets/next/phosphor.html'],
-      ['mark',     '/assets/next/mark.html']
+      ['mark',     '/assets/next/mark.html'],
+      ['screen',   '/assets/next/screen.html']
     ]],
     ['current', [
       ['billow',   '/assets/billow.html'],
@@ -153,23 +154,28 @@
       //                   this engine's own 30fps target. 15k holds the frame rate and the piece
       //                   simply reads at a slightly larger scale on a very big screen.
       maxFontSize: 34,   // ...but never past this, or it stops reading as a character grid
-      matte: null,        // { mode, cell, depth, bed, bedSteps, amp } — see the matte section
+      matte: null,        // { mode, cell, depth, bed, bedSteps, amp, curve } — see the matte section
       ui: true,           // the control bar. Set false when embedding this in another site
       bg: LIGHT_MODE ? "#fbfbfb" : "#080808"
     }, spec);
 
-    // ?matte=noise | ?matte=field | ?matte=off — switch mattes without editing the file
+    // ?matte=noise | ?matte=field | ?matte=screen | ?matte=off — switch without editing the file
     const MQ = new URLSearchParams(location.search).get('matte');
+    let matteDisabled = MQ === 'off';
     if (MQ && C.matte){
       if (MQ === 'off') C.matte = null;
-      else C.matte = Object.assign({}, C.matte, { mode: MQ });
+      else if (MQ === 'noise' || MQ === 'field' || MQ === 'screen')
+        C.matte = Object.assign({}, C.matte, { mode: MQ });
     }
-    if (C.matte){                                  // ?cell= ?amp= ?bed= ?steps= override live
+    if (C.matte){                                  // numeric matte levers override live
       const QP = new URLSearchParams(location.search);
-      for (const [q, k] of [['cell','cell'],['amp','amp'],['bed','bed'],['steps','bedSteps'],['contr','contrast'],['speed','speed'],['wob','wobble'],['depth','depth']]){
+      for (const [q, k] of [['cell','cell'],['amp','amp'],['bed','bed'],['steps','bedSteps'],['contr','contrast'],['speed','speed'],['wob','wobble'],['depth','depth'],['floor','floor'],['pitch','pitch'],['angle','angle'],['duty','duty']]){
         const v = QP.get(q);
         if (v !== null && v !== '' && !isNaN(+v)) C.matte[k] = +v;
       }
+      const curve = QP.get('curve');
+      if (curve === 'flat' || curve === 'bell') C.matte.curve = curve;
+      else if (curve !== null && curve !== '' && !isNaN(+curve)) C.matte.curve = +curve;
     }
     document.documentElement.style.background = document.body.style.background = C.bg;
     const BGL = hexrgb(C.bg);   // background in linear light — the bed is built around it
@@ -193,6 +199,18 @@
         ink: ["#161616", "#707070"], inkLight: ["#ececec", "#9a9a9a"]
       }, l);
     });
+    const MATTE_DEFAULTS = { mode:'noise', cell:3, depth:0.26, bed:0.26, bedSteps:2,
+                             amp:20, contrast:0.5, speed:0.06, wobble:0.5,
+                             curve:'flat', floor:0.25, pitch:4, angle:0, duty:0.5 };
+    const hasLayerMattes = layers.some(L => L.matte && typeof L.matte === 'object');
+    let layerMattes = [];
+    function resolveMattes(){
+      if (matteDisabled){ layerMattes = layers.map(() => null); return false; }
+      layerMattes = layers.map(L => L.matte && typeof L.matte === 'object'
+        ? Object.assign({}, MATTE_DEFAULTS, C.matte || {}, L.matte)
+        : C.matte);
+      return layerMattes.some(Boolean);
+    }
 
     let cv = document.querySelector('canvas');
     if (!cv){ cv = document.createElement('canvas'); document.body.appendChild(cv); }
@@ -201,8 +219,11 @@
     let mattePattern = null;   // declared here: fit() runs before the matte block below
     let bedAt = -1e9;
     let oc = null, octx = null; // offscreen glyph layer, composited back through the lattice
-    let bed = null, bctx = null, bimg = null, bw = 0, bh = 0;   // the sub-glyph tonal layer
+    let bed = null, bctx = null, bimg = null, bw = 0, bh = 0, bedCell = 1; // sub-glyph tonal layer
     let bedTile = null, bedTileCtx = null, bedTileImg = null, bedPattern = null;  // noise-mode tile
+    let matteMask = null, matteMaskCtx = null, matteMaskImg = null; // winning layer per bed block
+    let bedWinner = null, bedValue = null, bedCurve = null, bedGX = null, bedGY = null;
+    let screenInk = [], noisePhase = new Map(), noiseQuant = new Map();
 
     function fit(){
       const dpr = window.devicePixelRatio || 1;
@@ -458,50 +479,132 @@
     // ---- MATTE: a sub-glyph pixel lattice -------------------------------------------------
     // Everything above works at the character cell, roughly 11x18 device pixels. This pass works
     // an order of magnitude finer: the finished frame is multiplied by a lattice of 2-3 PIXEL
-    // blocks, each block sitting at a slightly different opacity, with the block values drawn
-    // from the same blue-noise mask. It is not grain — grain is per-pixel and random, and it
+    // blocks, each block sitting at a slightly different opacity, with values drawn from the
+    // selected noise, field, or ruled material. It is not grain — grain is per-pixel and random, and it
     // sits ON the image. This is a structured lattice the image is resolved ONTO, so the layers
     // stop looking like separate passes stacked up and start looking like one exposure.
-    // Built once as a tile and stamped as a pattern, in DEVICE pixels so the blocks land on real
-    // pixels rather than being resampled into mush.
+    // A single piece-level lattice is stamped as a tile. Per-layer mattes keep one block map so
+    // their material can change without redrawing the full bed once for every layer.
     function buildMatte(){
       mattePattern = null; oc = null; octx = null; bedAt = -1e9;
       bedTile = null; bedPattern = null;
-      if (!C.matte) return;
-      const cell = Math.max(1, C.matte.cell|0), depth = C.matte.depth || 0;
-      const T = cell * 32;                                   // one full period of the mask
-      const tile = document.createElement('canvas');
-      tile.width = T; tile.height = T;
-      const tc = tile.getContext('2d');
-      const img = tc.createImageData(T, T);
-      const d = img.data;
-      for (let by = 0; by < 32; by++){
-        for (let bx = 0; bx < 32; bx++){
-          // ONE ALPHA PER BLOCK, not per pixel — that is what makes it a lattice and not grain
-          const n = BN[by*32 + bx] + 0.5;                     // 0 .. 1
-          const a = Math.max(0, Math.min(255, Math.round(255*(1 - depth*n))));
-          for (let y = 0; y < cell; y++){
-            const row = (by*cell + y)*T;
-            for (let x = 0; x < cell; x++){
-              const i = (row + bx*cell + x)*4;
-              d[i] = d[i+1] = d[i+2] = 255; d[i+3] = a;      // white, varying ALPHA
+      bed = null; bctx = null; bimg = null; matteMask = null; matteMaskCtx = null; matteMaskImg = null;
+      bedWinner = null; bedValue = null; bedCurve = null; bedGX = null; bedGY = null;
+      screenInk = []; noisePhase = new Map(); noiseQuant = new Map();
+      if (!resolveMattes()) return;
+      const active = layerMattes.filter(Boolean);
+      let cell = Math.max(1, ((C.matte || active[0]).cell|0));
+      if (hasLayerMattes){
+        // Mixed lattices share one pass. Their greatest common divisor is the smallest backing
+        // grid that preserves every authored block boundary instead of softening one layer to fit.
+        function gcd(a, b){ while (b){ const r = a%b; a = b; b = r; } return a; }
+        for (const M of active) cell = gcd(cell, Math.max(1, M.cell|0));
+      }
+      bedCell = cell;
+      const dynamicMask = hasLayerMattes || active.some(M => M.mode === 'screen');
+      const depth = active.reduce((m, M) => Math.max(m, M.depth || 0), 0);
+      let tile = null;
+
+      if (!dynamicMask){
+        const T = cell * 32;                                 // one full period of the mask
+        tile = document.createElement('canvas');
+        tile.width = T; tile.height = T;
+        const tc = tile.getContext('2d');
+        const img = tc.createImageData(T, T);
+        const d = img.data;
+        for (let by = 0; by < 32; by++){
+          for (let bx = 0; bx < 32; bx++){
+            // ONE ALPHA PER BLOCK, not per pixel — that is what makes it a lattice and not grain
+            const n = BN[by*32 + bx] + 0.5;                   // 0 .. 1
+            const a = Math.max(0, Math.min(255, Math.round(255*(1 - depth*n))));
+            for (let y = 0; y < cell; y++){
+              const row = (by*cell + y)*T;
+              for (let x = 0; x < cell; x++){
+                const i = (row + bx*cell + x)*4;
+                d[i] = d[i+1] = d[i+2] = 255; d[i+3] = a;    // white, varying ALPHA
+              }
             }
           }
         }
+        tc.putImageData(img, 0, 0);
       }
-      tc.putImageData(img, 0, 0);
       // THE BED — the continuous tonal layer the pixelation resolves onto.
       // Rendered at one pixel per LATTICE BLOCK (so a 3px lattice means a canvas a third the
       // size), then blown back up with smoothing off, which is what produces hard little blocks
-      // rather than a soft gradient. The shaded field is sampled bilinearly between character
-      // cells, so the bed is smooth where the glyph grid is stepped — the two layers disagree at
-      // different scales, and that disagreement is what stops it looking like one flat pass.
-      bw = Math.max(1, Math.ceil(cv.width / cell));
-      bh = Math.max(1, Math.ceil(cv.height / cell));
+      // rather than a soft gradient. The winning field value is cached at character-cell scale;
+      // the sub-glyph structure comes from the noise or screen rather than costly interpolation.
+      bw = Math.max(1, Math.ceil(cv.width / bedCell));
+      bh = Math.max(1, Math.ceil(cv.height / bedCell));
       bed = document.createElement('canvas');
       bed.width = bw; bed.height = bh;
       bctx = bed.getContext('2d');
       bimg = bctx.createImageData(bw, bh);
+      bedWinner = new Int16Array(cols*rows);
+      bedValue = new Float32Array(cols*rows);
+      bedCurve = new Float64Array(cols*rows);
+      bedGX = new Int32Array(bw); bedGY = new Int32Array(bh);
+      const dpr = window.devicePixelRatio || 1, cw = adv*dpr, chh = lineH*dpr;
+      for (let px = 0; px < bw; px++)
+        bedGX[px] = Math.max(0, Math.min(cols-1, Math.round(px*bedCell/cw - 0.5)));
+      for (let py = 0; py < bh; py++)
+        bedGY[py] = Math.max(0, Math.min(rows-1, Math.round(py*bedCell/chh - 0.5)));
+
+      // A ruled screen is fixed until its config or the viewport changes. Bake it once by stepping
+      // a linear phase across each row, so the hot bed loop does no trigonometry at all.
+      const madeScreens = new Map();
+      screenInk = layerMattes.concat([C.matte]).map(M => {
+        if (!M || M.mode !== 'screen') return null;
+        if (madeScreens.has(M)) return madeScreens.get(M);
+        const mc = Math.max(1, M.cell|0), pitch = Math.max(1, M.pitch == null ? 4 : M.pitch);
+        const angle = (M.angle == null ? 0 : M.angle)*Math.PI/180;
+        const sx = -Math.sin(angle)/pitch, sy = Math.cos(angle)/pitch;
+        const duty = Math.max(0, Math.min(1, M.duty == null ? 0.5 : M.duty));
+        const xPhase = new Float64Array(bw), ink = new Uint8Array(bw*bh);
+        let bx = 0, phaseX = 0;
+        for (let px = 0; px < bw; px++){
+          const next = Math.floor(px*bedCell/mc);
+          while (bx < next){ bx++; phaseX += sx; }
+          xPhase[px] = phaseX;
+        }
+        for (let py = 0; py < bh; py++){
+          const rowPhase = Math.floor(py*bedCell/mc)*sy, row = py*bw;
+          for (let px = 0; px < bw; px++){
+            const phase = rowPhase + xPhase[px];
+            ink[row+px] = phase-Math.floor(phase) < duty ? 1 : 0;
+          }
+        }
+        madeScreens.set(M, ink); return ink;
+      });
+
+      // Animated noise keeps an irregular phase per block. Cache its sine and cosine once, then
+      // advance time with the angle-addition identity instead of calling Math.sin per repaint.
+      const flatTiled = !hasLayerMattes && C.matte && C.matte.mode === 'noise'
+        && (C.matte.curve == null || C.matte.curve === 'flat');
+      if (!flatTiled){
+        for (const M of layerMattes.concat([C.matte])){
+          if (!M || M.mode !== 'noise') continue;
+          if (!noiseQuant.has(M)){
+            const steps = M.bedSteps || 2, contrast = M.contrast == null ? 0.5 : M.contrast;
+            const g = 1 - contrast*0.85, thresholds = [];
+            for (let k = 1; (2*k-1)/steps <= 1; k++)
+              thresholds.push(Math.pow((2*k-1)/steps, 1/g));
+            noiseQuant.set(M, thresholds);
+          }
+          if (M.speed == null ? 0.06 : M.speed){
+            const mc = Math.max(1, M.cell|0); if (noisePhase.has(mc)) continue;
+            const sin = new Float64Array(bw*bh), cos = new Float64Array(bw*bh);
+            for (let py = 0; py < bh; py++){
+              const my = Math.floor(py*bedCell/mc), row = py*bw;
+              for (let px = 0; px < bw; px++){
+                const mx = Math.floor(px*bedCell/mc);
+                const phase = 6.28318*blockPhase(mx, my), i = row+px;
+                sin[i] = Math.sin(phase); cos[i] = Math.cos(phase);
+              }
+            }
+            noisePhase.set(mc, {sin, cos});
+          }
+        }
+      }
 
       // The offscreen layer exists ONLY to let the lattice cut the glyphs' alpha. That costs three
       // full-screen operations every frame (clear, destination-in fill, blit), which on a large
@@ -512,10 +615,15 @@
       oc = document.createElement('canvas');
       oc.width = cv.width; oc.height = cv.height;
       octx = oc.getContext('2d');
-      mattePattern = octx.createPattern(tile, 'repeat');
+      if (dynamicMask){
+        matteMask = document.createElement('canvas');
+        matteMask.width = bw; matteMask.height = bh;
+        matteMaskCtx = matteMask.getContext('2d');
+        matteMaskImg = matteMaskCtx.createImageData(bw, bh);
+      } else mattePattern = octx.createPattern(tile, 'repeat');
     }
 
-    // Paint the bed: bilinear-sample the shaded field, dither it with the same blue-noise mask,
+    // Paint the bed: look up the cached shaded field, dither it with the same blue-noise mask,
     // and quantise to a handful of levels. Quantising is the point — an un-quantised gradient
     // just looks like a blur; quantised and dithered, it reads as an image resolved onto a fine
     // grid, which is the "light pixelation" this is after. It is NOT grain: grain is per-pixel
@@ -534,11 +642,10 @@
     // takes ~16s to travel light-to-dark), so recomputing it on every frame is almost entirely
     // waste. Rebuild it a few times a second and blit the cached canvas in between; the motion is
     // far too slow for the difference to be visible.
-    // In NOISE mode the bed owes nothing to the picture — it is blue noise plus time. So it does
-    // not need to be a full-screen buffer at all: 32 blocks square is one whole period of the mask,
-    // and that tile can simply be repeated. On a 3440-wide display that is a 96x96 tile instead of
-    // ~550,000 samples per rebuild, which was the difference between a 67ms p95 and a smooth one.
-    // Only FIELD mode needs the full-screen path, because there the bed follows the image.
+    // Flat, piece-level NOISE owes nothing to the picture, so 32 blocks square is one whole period
+    // and can simply repeat. On a 3440-wide display that is a 96x96 tile instead of ~550,000
+    // samples per rebuild. Curved noise, field, screen, and per-layer mattes need the full path
+    // because their strength or material follows the shaded image.
     function paintBedTiled(t){
       const M = C.matte;
       const cell = Math.max(1, M.cell|0), T = 32*cell;
@@ -591,38 +698,75 @@
       ctx.restore();
     }
 
+    function matteCurve(M, v){
+      const curve = M.curve;
+      if (curve == null || curve === 'flat') return 1;
+      const exponent = curve === 'bell' ? 1 : typeof curve === 'number' ? Math.max(0, curve) : 0;
+      if (!exponent) return 1;
+      const floor = Math.max(0, Math.min(1, M.floor == null ? 0.25 : M.floor));
+      const x = 1 - Math.abs(2*Math.max(0, Math.min(1, v)) - 1);
+      return floor + (1-floor)*Math.pow(x, exponent);
+    }
+
     function paintBed(t){
       const M0 = C.matte;
-      if (M0 && M0.mode === 'noise' && (M0.bed == null || M0.bed > 0)){
+      const flatNoise = M0 && M0.mode === 'noise' && (M0.curve == null || M0.curve === 'flat');
+      if (!hasLayerMattes && flatNoise && (M0.bed == null || M0.bed > 0)){
         const e = 1 / Math.max(1, M0.bedFps || 12);
         if (t - bedAt < e){ blitBedTile(); return; }
         bedAt = t; paintBedTiled(t); return;
       }
       if (!bed) return;
-      const every = 1 / Math.max(1, C.matte.bedFps || 12);
+      let bedFps = 1;
+      for (const M of layerMattes) if (M) bedFps = Math.max(bedFps, M.bedFps || 12);
+      const every = 1 / bedFps;
       if (t - bedAt < every){ blitBed(); return; }
       bedAt = t;
-      const M = C.matte, depth = M.bed == null ? 0.5 : M.bed;
-      if (depth <= 0) return;
-      const steps = M.bedSteps || 2;
-      const dpr = window.devicePixelRatio || 1;
-      const cw = adv*dpr, chh = lineH*dpr, cell = Math.max(1, M.cell|0);
-      const top = layers[layers.length-1], lo = top._lo, hi = top._hi, d = bimg.data;
+      const cell = bedCell, d = bimg.data;
+      const md = matteMaskImg && matteMaskImg.data;
       const bgS = [l2s(BGL[0]), l2s(BGL[1]), l2s(BGL[2])];
-      const noiseMode = M.mode === 'noise';
-      const NAMP = M.amp == null ? 20 : M.amp;             // sRGB levels, peak-to-peak (noise mode)
-      const NCON = M.contrast == null ? 0.5 : M.contrast;  // 0 = linear spread, 1 = strongly bimodal
-      const NSPD = M.speed == null ? 0.06 : M.speed;       // cycles per second, per block. 0 = static
-      const NWOB = M.wobble == null ? 0.5 : M.wobble;      // how far a block travels from its resting value
+
+      // Resolve material and curve strength once at GLYPH resolution. Repeating this scan for
+      // every sub-glyph block was multiplying the most expensive work by roughly a hundred.
+      for (let i = 0; i < cols*rows; i++){
+        let sv = 0, win = -1;
+        for (let li = 0; li < layers.length; li++){
+          const v = layers[li]._S[i];
+          if (v > sv){ sv = v; win = li; }
+        }
+        bedWinner[i] = win; bedValue[i] = sv;
+        const M = win >= 0 ? layerMattes[win] : C.matte;
+        bedCurve[i] = M ? matteCurve(M, sv) : 1;
+      }
+      const matteByWinner = layerMattes.concat([C.matte]);
+      const noiseTime = new Map();
+      for (const M of matteByWinner){
+        if (!M || M.mode !== 'noise' || noiseTime.has(M)) continue;
+        const speed = M.speed == null ? 0.06 : M.speed;
+        if (speed <= 0) continue;
+        const phase = 6.28318*t*speed;
+        noiseTime.set(M, {sin:Math.sin(phase), cos:Math.cos(phase)});
+      }
 
       for (let py = 0; py < bh; py++){
-        const fy = (py*cell)/chh - 0.5;
-        const y0 = Math.max(0, Math.min(rows-1, Math.floor(fy))), y1 = Math.min(rows-1, y0+1), ty = fy-y0;
+        const glyphRow = bedGY[py]*cols;
         for (let px = 0; px < bw; px++){
-          const i = (py*bw + px)*4;
-          const n = BN[(py & 31)*32 + (px & 31)];            // -0.5 .. +0.5
+          const bi = py*bw + px, i = bi*4;
+          const gi = glyphRow + bedGX[px], win = bedWinner[gi], sv = bedValue[gi];
+          const mi = win >= 0 ? win : layers.length, M = matteByWinner[mi];
+          if (!M){
+            d[i] = d[i+1] = d[i+2] = d[i+3] = 0;
+            if (md){ md[i] = md[i+1] = md[i+2] = 255; md[i+3] = 255; }
+            continue;
+          }
+          const mc = Math.max(1, M.cell|0);
+          const mx = Math.floor(px*cell/mc), my = Math.floor(py*cell/mc);
+          const n = BN[(my & 31)*32 + (mx & 31)];            // -0.5 .. +0.5
+          const steps = M.bedSteps || 2;
+          const curve = bedCurve[gi], sm = screenInk[mi];
+          const inked = sm ? sm[bi] === 1 : false;
 
-          if (noiseMode){
+          if (M.mode === 'noise' && (M.bed == null || M.bed > 0)){
             // MODE 'noise' — the matte owes nothing to the picture. Every block is its own
             // value, drifting a little lighter or a little darker than the ground. Because the
             // values are FIXED per block and do not change frame to frame, it reads as a
@@ -646,51 +790,60 @@
             // scintillates, and it is the thing this whole treatment is trying not to be. Each
             // cell travels light-to-dark and back on its own clock, slowly enough to read as
             // the surface breathing rather than as noise.
+            const NAMP = M.amp == null ? 20 : M.amp;          // sRGB levels, peak-to-peak
+            const NSPD = M.speed == null ? 0.06 : M.speed;
+            const NWOB = M.wobble == null ? 0.5 : M.wobble;
             let nn = n;
             if (NSPD > 0){
-              const ph = blockPhase(px, py);
-              nn = n + NWOB * Math.sin(6.28318 * (t*NSPD + ph));
+              const ph = noisePhase.get(mc), tm = noiseTime.get(M);
+              nn = n + NWOB * (tm.sin*ph.cos[bi] + tm.cos*ph.sin[bi]);
               if (nn > 0.5) nn -= 1; else if (nn < -0.5) nn += 1;   // wrap, so it never clips flat
             }
-            let u = nn*2;                                     // -1 .. +1
-            if (NCON > 0){
-              const g = 1 - NCON*0.85;                        // g<1 pushes toward the extremes
-              u = (u < 0 ? -1 : 1) * Math.pow(Math.abs(u), g);
-            }
-            const v = Math.round(u*0.5*steps)/steps;          // hold it to discrete levels
+            const u = nn*2, au = Math.abs(u);                 // -1 .. +1
+            const thresholds = noiseQuant.get(M);
+            let level = 0;
+            if (u < 0){
+              while (level < thresholds.length && au > thresholds[level]) level++;
+              level = -level;
+            } else while (level < thresholds.length && au >= thresholds[level]) level++;
+            const v = level/steps;                            // hold it to discrete levels
             for (let k = 0; k < 3; k++){
-              const h = NAMP*0.5;
+              const amp = NAMP*curve, h = amp*0.5;
               const centre = Math.max(h, Math.min(255 - h, bgS[k]));   // keep the swing in range
-              const c = centre + NAMP*v;
+              const c = centre + amp*v;
               d[i+k] = c < 0 ? 0 : c > 255 ? 255 : c;
             }
             d[i+3] = 255;
-            continue;
-          }
+          } else if ((M.mode === 'field' || M.mode === 'screen') && (M.bed == null || M.bed > 0)){
+            // FIELD uses blue noise across the quantisation step; SCREEN replaces that stochastic
+            // term with a fixed ruled lattice, so one plane reads as manufactured beside the grain.
+            let v = sv;
+            if (M.mode === 'field'){
+              if (M.curve == null || M.curve === 'flat') v += n/steps;
+              else v += n/steps*curve;
+              v = Math.round(v*steps)/steps;
+            } else {
+              v += (inked ? 0.5 : -0.5)/steps*curve;
+              // A half-step is deliberate here. Absorb field floating-point dust so a regular
+              // rule cannot lose one row merely because 0.5 arrived as 0.49999999999999994.
+              v = Math.round(v*steps + 1e-9)/steps;
+            }
+            v = v < 0 ? 0 : v > 1 ? 1 : v;
+            const depth = M.bed == null ? 0.5 : M.bed;
+            d[i] = d[i+1] = d[i+2] = 255;
+            d[i+3] = Math.round(255 * depth * v * v);        // squared: keep it under the glyphs
+          } else d[i] = d[i+1] = d[i+2] = d[i+3] = 0;
 
-          // MODE 'field' — the matte follows the picture, reinforcing the form already there.
-          const fx = (px*cell)/cw - 0.5;
-          const x0 = Math.max(0, Math.min(cols-1, Math.floor(fx))), x1 = Math.min(cols-1, x0+1), tx = fx-x0;
-          let v = 0;
-          for (const L of layers){                           // brightest layer wins the bed
-            const S = L._S;
-            const a = S[y0*cols+x0]*(1-tx) + S[y0*cols+x1]*tx;
-            const b = S[y1*cols+x0]*(1-tx) + S[y1*cols+x1]*tx;
-            const sv = a*(1-ty) + b*ty;
-            if (sv > v) v = sv;
+          if (md){
+            const depth = M.depth || 0;
+            const maskValue = M.mode === 'screen' ? (inked ? 1 : 0) : n + 0.5;
+            const alpha = Math.max(0, Math.min(255, Math.round(255*(1-depth*maskValue))));
+            md[i] = md[i+1] = md[i+2] = 255; md[i+3] = alpha;
           }
-          v += n / steps;                                    // dither ACROSS the step...
-          v = Math.round(v*steps)/steps;                     // ...then quantise
-          v = v < 0 ? 0 : v > 1 ? 1 : v;
-          // white at varying ALPHA, laid over the ground — this only ever adds light where the
-          // field is lit, which is what makes it read as reinforcement of the form rather than
-          // as a surface of its own. (The 'noise' branch above is opaque instead, because it has
-          // to be able to go DARKER than the ground as well as lighter.)
-          d[i] = d[i+1] = d[i+2] = 255;
-          d[i+3] = Math.round(255 * depth * v * v);          // squared: keep it under the glyphs
         }
       }
       bctx.putImageData(bimg, 0, 0);
+      if (matteMaskImg) matteMaskCtx.putImageData(matteMaskImg, 0, 0);
       blitBed();
     }
     function blitBed(){
@@ -709,12 +862,17 @@
     // different opacity over the ground, so the whole picture reads as resolved onto a fine
     // lattice rather than drawn on top of one.
     function applyMatte(){
-      if (!mattePattern) return;
+      if (!mattePattern && !matteMask) return;
       octx.save();
       octx.setTransform(1, 0, 0, 1, 0, 0);                    // device pixels
       octx.globalCompositeOperation = 'destination-in';
-      octx.fillStyle = mattePattern;
-      octx.fillRect(0, 0, oc.width, oc.height);
+      if (matteMask){
+        octx.imageSmoothingEnabled = false;
+        octx.drawImage(matteMask, 0, 0, oc.width, oc.height);
+      } else {
+        octx.fillStyle = mattePattern;
+        octx.fillRect(0, 0, oc.width, oc.height);
+      }
       octx.restore();
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -734,8 +892,8 @@
       if (C.ui === false) return;                        // embedded in someone else's page
       if (window.self !== window.top) return;            // embedded — no chrome
       if (!C.matte && !C.matteDefault) return;
-      const M = () => C.matte || (C.matte = Object.assign({ mode:'noise', cell:3, depth:0.26,
-                                                            bed:0.26, bedSteps:2, amp:20 }, C.matteDefault||{}));
+      if (C.matte) C.matte = Object.assign({}, MATTE_DEFAULTS, C.matte);
+      const M = () => C.matte || (C.matte = Object.assign({}, MATTE_DEFAULTS, C.matteDefault||{}));
       const bar = document.createElement('div');
       bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9;display:flex;'
         + 'flex-wrap:wrap;'   // a narrow window wraps the controls onto a second row rather
@@ -795,11 +953,11 @@
       };
       bar.appendChild(pick);
 
-      // mode: off / field / noise
+      // mode: off / field / noise / screen
       const modes = document.createElement('span');
       modes.style.cssText = 'display:flex;gap:0;';
       const btns = {};
-      for (const m of ['off','field','noise']){
+      for (const m of ['off','field','noise','screen']){
         const b = document.createElement('a');
         b.textContent = m; b.href = '#';
         b.style.cssText = 'padding:4px 11px;border:1px solid #2a2a2a;margin-left:-1px;'
@@ -834,6 +992,10 @@
       slider('contrast', 'contr', 0, 1, 0.02);
       slider('speed',    'speed', 0, 0.5, 0.01);
       slider('wobble',   'wob',   0, 1, 0.02);
+      slider('floor',    'floor', 0, 1, 0.02);
+      slider('pitch',    'pitch', 1, 16, 1);
+      slider('angle',    'angle', 0, 180, 1);
+      slider('duty',     'duty',  0, 1, 0.02);
 
       const spacer = document.createElement('span');
       spacer.style.cssText = 'flex:1 1 0;min-width:0;';   // must be allowed to collapse when wrapped
@@ -859,10 +1021,14 @@
       copy.onclick = e => {
         e.preventDefault();
         const m = M();
+        const curve = typeof m.curve === 'number' ? m.curve : "'" + m.curve + "'";
         const line = "matte: { mode: '" + m.mode + "', cell: " + m.cell + ", depth: " + (+m.depth).toFixed(2)
           + ", bed: " + (+m.bed).toFixed(2) + ", bedSteps: " + m.bedSteps + ", amp: " + m.amp
           + ", contrast: " + (+m.contrast).toFixed(2) + ", speed: " + (+m.speed).toFixed(2)
-          + ", wobble: " + (+m.wobble).toFixed(2) + " }";
+          + ", wobble: " + (+m.wobble).toFixed(2) + ", curve: " + curve
+          + ", floor: " + (+m.floor).toFixed(2)
+          + (m.mode === 'screen' ? ", pitch: " + m.pitch + ", angle: " + m.angle
+              + ", duty: " + (+m.duty).toFixed(2) : '') + " }";
         (navigator.clipboard ? navigator.clipboard.writeText(line) : Promise.reject()).then(
           () => { copy.textContent = 'copied'; setTimeout(() => copy.textContent = 'copy config', 1100); },
           () => { copy.textContent = line; }
@@ -879,13 +1045,13 @@
       document.body.appendChild(bar);
 
       function setMode(m){
-        if (m === 'off'){ C.matte = null; }
-        else { M().mode = m; }
+        if (m === 'off'){ C.matte = null; matteDisabled = true; }
+        else { matteDisabled = false; M().mode = m; }
         buildMatte(); sync(true);
       }
       function sync(full){
         const on = !!C.matte, m = C.matte || {};
-        for (const k of ['off','field','noise']){
+        for (const k of ['off','field','noise','screen']){
           const active = on ? m.mode === k : k === 'off';
           btns[k].style.color = active ? '#ffffff' : '#a8a8a8';
           btns[k].style.borderColor = active ? '#5a5a5a' : '#2a2a2a';
@@ -896,17 +1062,22 @@
         rows.contrast.wrap.style.display = on && m.mode === 'noise' ? 'flex' : 'none';
         rows.speed.wrap.style.display    = on && m.mode === 'noise' ? 'flex' : 'none';
         rows.wobble.wrap.style.display   = on && m.mode === 'noise' ? 'flex' : 'none';
-        rows.bed.wrap.style.display      = on && m.mode === 'field' ? 'flex' : 'none';
-        rows.depth.wrap.style.display    = on && m.mode === 'field' ? 'flex' : 'none';
+        rows.bed.wrap.style.display      = on && (m.mode === 'field' || m.mode === 'screen') ? 'flex' : 'none';
+        rows.depth.wrap.style.display    = on && (m.mode === 'field' || m.mode === 'screen') ? 'flex' : 'none';
+        rows.floor.wrap.style.display    = on && m.curve !== 'flat' ? 'flex' : 'none';
+        rows.pitch.wrap.style.display    = on && m.mode === 'screen' ? 'flex' : 'none';
+        rows.angle.wrap.style.display    = on && m.mode === 'screen' ? 'flex' : 'none';
+        rows.duty.wrap.style.display     = on && m.mode === 'screen' ? 'flex' : 'none';
         rows.cell.wrap.style.display     = on ? 'flex' : 'none';
         rows.bedSteps.wrap.style.display = on ? 'flex' : 'none';
-        if (full && on) for (const k of ['cell','amp','bed','bedSteps','depth','contrast','speed','wobble']){
+        if (full && on) for (const k of ['cell','amp','bed','bedSteps','depth','contrast','speed','wobble','floor','pitch','angle','duty']){
           rows[k].inp.value = m[k]; rows[k].out.textContent = m[k];
         }
         const u = new URL(location.href);
         u.searchParams.set('matte', on ? m.mode : 'off');
-        for (const [q,k] of [['cell','cell'],['amp','amp'],['bed','bed'],['steps','bedSteps'],['contr','contrast'],['speed','speed'],['wob','wobble'],['depth','depth']])
+        for (const [q,k] of [['cell','cell'],['amp','amp'],['bed','bed'],['steps','bedSteps'],['contr','contrast'],['speed','speed'],['wob','wobble'],['depth','depth'],['floor','floor'],['pitch','pitch'],['angle','angle'],['duty','duty']])
           if (on) u.searchParams.set(q, m[k]); else u.searchParams.delete(q);
+        if (on) u.searchParams.set('curve', m.curve); else u.searchParams.delete('curve');
         history.replaceState(null, '', u);
         try { localStorage.setItem('asciara-matte', JSON.stringify(C.matte)); } catch (e) {}
       }

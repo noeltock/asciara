@@ -93,16 +93,18 @@ and hit **copy config** to paste a setting you like straight back into the sourc
 | **strata** | three depth planes, each with its own motion, occluding one another |
 | **phosphor** | sheared gusting filaments that leave a decaying wake |
 | **mark** | a logo that is not drawn — it is the patch of water that has stopped moving |
+| **screen** | one ruled middle plane set against value-keyed grain on the surrounding layers |
 
 **lab** — `assets/lab/`, the one place three.js is allowed, to test what a GPU actually buys.
 
 ### The matte
 The `next` pieces add a **matte**: a lattice of 2-3 *pixel* blocks, each at a slightly different
 value, that the finished frame is resolved onto. It is what gives a dark image a produced,
-photographed quality instead of glyphs printed on flat black. Two modes — `field` follows the
-picture and reinforces the form; `noise` owes nothing to it and reads as the surface the image sits
-on. It is **not film grain**: grain is per-pixel, random and changes every frame, so it sits *on* a
-picture; this is block-aligned, blue-noise derived and *fixed*, so the picture resolves *onto* it.
+photographed quality instead of glyphs printed on flat black. `field` follows the picture, `noise`
+reads as the surface beneath it, and `screen` supplies a regular ruled plane. A value curve can thin
+the texture at both ends of the ramp, and layer-level matte objects can change material without
+changing the whole frame. It is **not film grain**: this treatment is block-aligned and stable, so
+the picture resolves *onto* it.
 
 Open any `next` piece directly and a control bar appears — mode, block size, strength, and a
 **copy config** button that hands you the line to paste back into the file. It is gated on not being

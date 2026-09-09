@@ -230,22 +230,22 @@ works an order of magnitude finer: a lattice of 2-3 PIXEL blocks, each sitting a
 different value, that the finished frame is resolved onto. It is what gives the image a produced,
 photographed quality instead of looking like glyphs printed on flat black.
 
-It is **not film grain**. Grain is per-pixel, random, and changes every frame, so it sits *on top of*
-a picture. This is block-aligned, blue-noise derived, and **fixed** — it does not change frame to
-frame — so the picture reads as resolved *onto* a surface.
+It is **not film grain**. Grain is per-pixel and random, so it sits *on top of* a picture. The matte
+is block-aligned and stable: `noise` and `field` use blue noise, while `screen` uses exact ruled
+lines. In every case the picture reads as resolved *onto* a surface.
 
 ### The control bar
 Open any `assets/next/*.html` piece DIRECTLY and a control bar appears across the top:
 
 `asciara` wordmark (Geist Pixel, links to the gallery) · a **switcher** listing every background in
-the repo grouped by loadout · **off / field / noise** · the dials for the current mode ·
+the repo grouped by loadout · **off / field / noise / screen** · the dials for the current mode ·
 **light/dark** · **copy config** · **hide**
 
 - It is gated on `window.self === window.top`, so it never appears in the gallery's iframe tiles.
 - The switcher carries the current query string across, so settings and light mode survive a jump
   from one piece to the next.
 - Only the dials that do something in the current mode are shown — `amp`/`contr`/`speed`/`wob` for
-  noise, `bed`/`depth` for field.
+  noise, `bed`/`depth` for field, and `pitch`/`angle`/`duty` for screen.
 - Every change rewrites the URL, so a setting you like is a link you can send or reload.
 - **copy config** puts the exact line on the clipboard to paste back into the piece. This is the
   point of the whole bar: tuning that cannot get back into the source is just fiddling.
@@ -253,17 +253,19 @@ the repo grouped by loadout · **off / field / noise** · the dials for the curr
 - The switcher is built from `CATALOGUE` at the top of `nx.js` — add a background there and it
   appears in every other background's switcher.
 
-Query overrides work without the bar too: `?matte=field|noise|off`, `?cell=`, `?amp=`, `?bed=`,
-`?steps=`, `?contr=`, `?speed=`, `?wob=`, `?depth=`, `?light`.
+Query overrides work without the bar too: `?matte=field|noise|screen|off`, `?cell=`, `?amp=`,
+`?bed=`, `?steps=`, `?contr=`, `?speed=`, `?wob=`, `?depth=`, `?curve=`, `?floor=`,
+`?pitch=`, `?angle=`, `?duty=`, `?light`.
 
 ```js
 matte: { mode: 'noise', cell: 3, depth: 0.26, bed: 0.26, bedSteps: 2, amp: 20,
-         contrast: 0.50, speed: 0.06, wobble: 0.50 }   // the tuned defaults
+         contrast: 0.50, speed: 0.06, wobble: 0.50,
+         curve: 'flat', floor: 0.25 }   // the tuned defaults
 ```
 
 | Lever | Does |
 |---|---|
-| `mode` | `'field'` or `'noise'` — the two mattes, below |
+| `mode` | `'field'`, `'noise'`, or `'screen'` — the three mattes, below |
 | `cell` | lattice block size in DEVICE pixels. 2-3 is the range that reads as "light pixelation" |
 | `depth` | how much the lattice varies the opacity of the glyph layer itself |
 | `bed` | how present the tonal underlayer is. This is the main subtlety dial |
@@ -272,14 +274,47 @@ matte: { mode: 'noise', cell: 3, depth: 0.26, bed: 0.26, bedSteps: 2, amp: 20,
 | `contrast` | `noise` only: 0 spreads values evenly, 1 pushes them to the extremes. See below |
 | `speed` | `noise` only: cycles per second each block travels light-to-dark. 0 = static |
 | `wobble` | `noise` only: how far a block moves from its resting value |
+| `curve` | `'flat'` keeps constant amplitude; `'bell'` or a numeric exponent concentrates it in mid-values |
+| `floor` | minimum curve multiplier at black and white. Defaults to `0.25`, so texture thins without vanishing |
+| `pitch` | `screen` only: blocks per repeat. Defaults to `4` |
+| `angle` | `screen` only: rule angle in degrees (`0` horizontal, `90` vertical, `45` diagonal) |
+| `duty` | `screen` only: fraction of each pitch occupied by a rule, from `0` to `1`. Defaults to `0.5` |
 
-**`mode: 'field'`** — the matte follows the picture. The bed is the shaded field itself, sampled
-bilinearly *between* character cells, quantised and dithered, drawn as white at varying alpha so it
-only ever *adds* light where the field is lit. Reinforces the form already there.
+**`mode: 'field'`** — the matte follows the picture. The bed takes the nearest cached character-cell
+value, quantises and dithers it, then draws white at varying alpha so it only ever *adds* light where
+the field is lit. Reinforces the form already there.
 
 **`mode: 'noise'`** — the matte owes nothing to the picture. Every block takes its own fixed value,
 a little lighter or darker than the ground, drawn opaque (it has to be able to go darker as well as
 lighter, which alpha cannot do). Reads as the surface the image is printed on.
+
+**`mode: 'screen'`** — a fixed ruled lattice replaces blue noise. `pitch`, `angle`, and `duty`
+control its spacing, direction, and inked fraction; there is no wobble or jitter. It is most useful
+on one layer against irregular grain, where the change in material separates that plane.
+
+`curve` keys texture strength to the cached shaded value. `'flat'` is the unchanged
+default. `'bell'` uses a symmetric peak at the middle of the ramp; a number uses that value as the
+falloff exponent. Both settle at `floor` at the darkest and lightest ends. Noise still takes each
+block's value from blue noise — the field sample scales amplitude only. Field and screen use the
+same multiplier on their dither term before quantisation.
+
+### Per-layer matte
+
+A layer can override any matte lever. Its object is shallow-merged over the piece matte, so it only
+needs to name what changes:
+
+```js
+matte: { mode: 'noise', cell: 3, amp: 20, curve: 'bell' },
+layers: [
+  { matte: { mode: 'screen', angle: 0, pitch: 4 }, height(x, y, t){ /* ... */ } },
+  { height(x, y, t){ /* inherits the noise matte */ } }
+]
+```
+
+The bed resolves its winner and value once per character cell, keeps the brightest layer, and uses
+that layer's matte for every finer block mapped to the cell. Nearest-cell lookup is deliberate: the
+curve only scales amplitude, while blue noise or the ruled screen supplies the sub-glyph structure.
+This avoids repeating a multi-layer field scan hundreds of thousands of times per bed repaint.
 
 The noise swing is centred **half a step ABOVE the ground**, not on it. The ground sits near 8, so a
 swing centred on it loses its whole dark half to clipping and the lattice reads at half strength.
@@ -306,8 +341,8 @@ toward the ends while keeping the levels. Contrast and granularity stopped fight
   instead of a soft gradient.
 - **Quantise, then dither.** An un-quantised gradient just looks like a blur. Quantised and
   dithered, it reads as an image resolved onto a grid.
-- **The bed samples between cells while the glyphs snap to cells.** The two layers disagree at
-  different scales, and that disagreement is what stops the whole thing looking like one flat pass.
+- **The field lookup stays at glyph resolution while the matte stays sub-glyph.** The material still
+  changes at the finer block scale without paying for field interpolation at every block.
 - **The mask must actually be blue noise, and this is worth checking.** The first mask generated
   for `nx.js` had a bug in void-and-cluster's third phase — it searched for the zero with the
   highest energy measured over the ONES, when the algorithm requires the tightest cluster of zeros
